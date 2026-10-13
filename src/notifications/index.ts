@@ -32,6 +32,8 @@ export async function cancelNotification(id: string) {
 }
 
 export async function notifyArrival(gymName: string, nextWorkout: string | null) {
+  const { granted } = await Notifications.getPermissionsAsync();
+  if (!granted) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: `T'es à ${gymName} 💪`,

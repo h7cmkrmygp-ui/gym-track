@@ -22,7 +22,8 @@ export function Screen({ title, children }: { title?: string; children: ReactNod
   return (
     <ScrollView
       style={{ backgroundColor: theme.background }}
-      contentInsetAdjustmentBehavior="automatic"
+      // Tab screens pad for the status bar themselves; stack screens let iOS account for the header.
+      contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={[
         styles.screen,

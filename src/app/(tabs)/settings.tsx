@@ -17,6 +17,7 @@ import { handleGeofenceEvent } from '@/geofence/task';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { dayKey } from '@/logic/stats';
 import type { Unit } from '@/logic/units';
+import { ensureNotificationPermission } from '@/notifications';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -55,6 +56,7 @@ export default function SettingsScreen() {
       }
       await addGym(gymName.trim() || 'Ma salle', coords.lat, coords.lng);
       setGymName('');
+      await ensureNotificationPermission();
       await syncGeofences();
       reload();
     } catch (e) {

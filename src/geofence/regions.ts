@@ -2,6 +2,7 @@ import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Location from 'expo-location';
 
 import { listGyms } from '@/db/gyms';
+import { ensureNotificationPermission } from '@/notifications';
 
 import { GEOFENCE_TASK, regionId } from './task';
 
@@ -29,6 +30,8 @@ export async function requestAlwaysLocation(): Promise<string | null> {
   if (!bg.granted) {
     return 'Choisis « Toujours » pour GymTrack dans Réglages > Confidentialité > Localisation, sinon l’arrivée à la salle ne peut pas être détectée.';
   }
+  // The arrival notice is sent from the background, where no permission prompt can show.
+  await ensureNotificationPermission();
   await syncGeofences();
   return null;
 }
