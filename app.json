@@ -8,7 +8,7 @@
     "scheme": "gymtrack",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.alexa.gymtrack",
       "supportsTablet": false,
       "infoPlist": {
@@ -33,9 +33,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#111111",
+          "backgroundColor": "#0d0e10",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 220
         }
       ],
       "expo-sqlite",
@@ -49,7 +49,26 @@
         }
       ],
       "expo-notifications",
-      "expo-task-manager"
+      "expo-task-manager",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "GymWidget",
+              "displayName": "GymTrack",
+              "description": "Ta série, ta semaine et ta prochaine séance.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

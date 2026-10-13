@@ -1,13 +1,12 @@
-import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Location from 'expo-location';
 
 import { listGyms } from '@/db/gyms';
+import { isExpoGo } from '@/env';
 import { ensureNotificationPermission } from '@/notifications';
 
 import { GEOFENCE_TASK, regionId } from './task';
 
-/** Expo Go cannot run background location on iOS; only the AltStore build can. */
-export const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+export { isExpoGo };
 
 export type GeofenceStatus = 'expo-go' | 'needs-permission' | 'no-gyms' | 'active';
 

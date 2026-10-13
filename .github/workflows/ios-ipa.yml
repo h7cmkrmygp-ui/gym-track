@@ -46,6 +46,23 @@ jobs:
             -archivePath "$RUNNER_TEMP/app.xcarchive" archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" -quiet
 
+      # The archive is unsigned, so it carries no entitlements. AltStore reads them from the
+      # binaries to register the app group shared with the widget, so embed them with a fake
+      # signature (AltStore re-signs everything at install time).
+      - name: Embed entitlements
+        run: |
+          brew install ldid
+          APP="$RUNNER_TEMP/app.xcarchive/Products/Applications/$SCHEME.app"
+          for EXT in "$APP"/PlugIns/*.appex; do
+            [ -e "$EXT" ] || continue
+            NAME=$(basename "$EXT" .appex)
+            BIN=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$EXT/Info.plist")
+            ldid -S"ios/$NAME/$NAME.entitlements" "$EXT/$BIN"
+            echo "== $NAME"; ldid -e "$EXT/$BIN"
+          done
+          ldid -S"ios/$SCHEME/$SCHEME.entitlements" "$APP/$SCHEME"
+          echo "== $SCHEME"; ldid -e "$APP/$SCHEME"
+
       - name: Package .ipa
         run: |
           cd "$RUNNER_TEMP"

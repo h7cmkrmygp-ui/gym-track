@@ -1,0 +1,47 @@
+diff --git a/node_modules/expo-widgets/ios/Widgets/TimelineProvider.swift b/node_modules/expo-widgets/ios/Widgets/TimelineProvider.swift
+index da0010a..7031a51 100644
+--- a/node_modules/expo-widgets/ios/Widgets/TimelineProvider.swift
++++ b/node_modules/expo-widgets/ios/Widgets/TimelineProvider.swift
+@@ -8,8 +8,7 @@ public struct WidgetsTimelineProvider: TimelineProvider {
+   public func getSnapshot(
+     in context: Context, completion: @escaping @Sendable (WidgetsTimelineEntry) -> Void
+   ) {
+-    let groupIdentifier =
+-      Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
++    let groupIdentifier = WidgetsStorage.resolveAppGroupIdentifier()
+     guard let groupIdentifier else {
+       completion(WidgetsTimelineEntry(date: Date(), name: name, props: nil, entryIndex: nil))
+       return
+@@ -23,8 +22,7 @@ public struct WidgetsTimelineProvider: TimelineProvider {
+     in context: Context,
+     completion: @escaping @Sendable (Timeline<WidgetsTimelineEntry>) -> Void
+   ) {
+-    let groupIdentifier =
+-      Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
++    let groupIdentifier = WidgetsStorage.resolveAppGroupIdentifier()
+     guard let groupIdentifier else {
+       fatalError("Could not get the app group identifier from Info.plist")
+     }
+diff --git a/node_modules/expo-widgets/ios/WidgetsStorage.swift b/node_modules/expo-widgets/ios/WidgetsStorage.swift
+index 86f9d6c..ac25b3b 100644
+--- a/node_modules/expo-widgets/ios/WidgetsStorage.swift
++++ b/node_modules/expo-widgets/ios/WidgetsStorage.swift
+@@ -1,5 +1,17 @@
+ public enum WidgetsStorage {
+-  public static var appGroupIdentifier: String? = Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
++  public static var appGroupIdentifier: String? = resolveAppGroupIdentifier()
++
++  /// Sideloading tools (AltStore, SideStore) re-sign the app with app groups suffixed by
++  /// the signing team ID and list the real identifiers under `ALTAppGroups` in Info.plist.
++  public static func resolveAppGroupIdentifier() -> String? {
++    let configured = Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
++    if let configured,
++       let sideloaded = (Bundle.main.object(forInfoDictionaryKey: "ALTAppGroups") as? [String])?
++         .first(where: { $0.hasPrefix(configured) }) {
++      return sideloaded
++    }
++    return configured
++  }
+   static let defaults = UserDefaults(suiteName: appGroupIdentifier)
+ 
+   static func set(_ value: [String: Any], forKey key: String) {
