@@ -13,3 +13,10 @@ export function formatDuration(ms: number): string {
   if (totalMin < 60) return `${totalMin} min`;
   return `${Math.floor(totalMin / 60)} h ${String(totalMin % 60).padStart(2, '0')}`;
 }
+
+/** The exercise being worked on: the first with a set left, or the last one when all are done. */
+export function currentExerciseIndex(exercises: { sets: { completedAt: number | null }[] }[]): number {
+  const index = exercises.findIndex((e) => e.sets.some((s) => s.completedAt === null));
+  if (index !== -1) return index;
+  return Math.max(0, exercises.length - 1);
+}

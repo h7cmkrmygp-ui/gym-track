@@ -15,7 +15,7 @@ import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import type { Unit } from '@/logic/units';
 import { relativeDay } from '@/logic/widget';
-import { scheduleWeeklySummary } from '@/notifications/summary';
+import { scheduleTimedNotifications } from '@/notifications/summary';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -80,7 +80,7 @@ export default function SettingsScreen() {
 
   const toggleSummary = async (on: boolean) => {
     await setSetting('weeklySummary', on);
-    await scheduleWeeklySummary();
+    await scheduleTimedNotifications();
     reload();
   };
 
@@ -234,6 +234,25 @@ export default function SettingsScreen() {
             </ThemedText>
           </View>
           <Switch value={settings.weeklySummary} onValueChange={toggleSummary} trackColor={{ true: theme.accent }} />
+        </Row>
+        <Row style={styles.between}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small">Rappel si pas de gym depuis</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Notification à 18 h quand ça fait trop longtemps.
+            </ThemedText>
+          </View>
+          <Stepper
+            value={settings.inactivityDays}
+            min={0}
+            max={7}
+            format={(v) => (v === 0 ? 'Jamais' : `${v} j`)}
+            onChange={async (v) => {
+              await setSetting('inactivityDays', v);
+              await scheduleTimedNotifications();
+              reload();
+            }}
+          />
         </Row>
       </Card>
 

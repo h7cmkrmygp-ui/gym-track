@@ -2,17 +2,18 @@
 import '@/geofence/task';
 
 import * as Notifications from 'expo-notifications';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { snapshotIfDue } from '@/backup';
 import { Colors } from '@/constants/theme';
 import { getDb } from '@/db/client';
+import { getActiveWorkout } from '@/db/workouts';
 import { syncGeofences } from '@/geofence/regions';
 import { endRestActivity } from '@/live-activity';
 import { handleNotificationResponse } from '@/notifications/responses';
-import { scheduleWeeklySummary } from '@/notifications/summary';
+import { scheduleTimedNotifications } from '@/notifications/summary';
 import { refreshWidget } from '@/widget';
 
 // The app is always dark (app.json); headers and backgrounds use the logo's colors.
@@ -32,16 +33,20 @@ export default function RootLayout() {
   useEffect(() => {
     getDb()
       .then(async () => {
-        await Promise.all([syncGeofences(), refreshWidget(), scheduleWeeklySummary()]);
-        await snapshotIfDue().catch((e) => console.warn('Automatic backup failed', e));
-        // A rest timer does not survive a relaunch; neither should its Live Activity.
-        await endRestActivity();
-        // The app may have been launched by tapping a notification.
+        // The app may have been launched by tapping a notification…
         const launch = await Notifications.getLastNotificationResponseAsync();
         if (launch) {
           await handleNotificationResponse(launch);
           await Notifications.clearLastNotificationResponseAsync();
+        } else {
+          // …otherwise reopening it goes straight back to an unfinished workout.
+          const active = await getActiveWorkout();
+          if (active) router.push(`/workout/${active.id}`);
         }
+        // A rest timer does not survive a relaunch; neither should its Live Activity.
+        await endRestActivity();
+        await Promise.all([syncGeofences(), refreshWidget(), scheduleTimedNotifications()]);
+        await snapshotIfDue().catch((e) => console.warn('Automatic backup failed', e));
       })
       .catch((e) => console.error(e));
     const notificationSub = Notifications.addNotificationResponseReceivedListener((response) => {
@@ -52,7 +57,7 @@ export default function RootLayout() {
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state !== 'background') return;
       refreshWidget();
-      scheduleWeeklySummary().catch((e) => console.warn('Weekly summary failed', e));
+      scheduleTimedNotifications().catch((e) => console.warn('Scheduling notifications failed', e));
     });
     return () => {
       notificationSub.remove();

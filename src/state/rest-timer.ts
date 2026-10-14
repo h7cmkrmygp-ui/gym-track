@@ -29,10 +29,12 @@ export function startRest(seconds: number, exerciseName: string) {
   return run(seconds, seconds, exerciseName);
 }
 
+/** Adds (or with a negative value, removes) rest time. Removing it all ends the rest. */
 export function addRest(seconds: number) {
   if (!timer) return;
   const remaining = Math.max(0, Math.round((timer.endsAt - Date.now()) / 1000)) + seconds;
-  return run(remaining, timer.totalS + seconds, timer.exerciseName);
+  if (remaining <= 0) return stopRest();
+  return run(remaining, Math.max(remaining, timer.totalS + seconds), timer.exerciseName);
 }
 
 export async function stopRest() {

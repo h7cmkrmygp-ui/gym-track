@@ -10,6 +10,8 @@ export type Settings = {
   weeklyGoal: number;
   /** Sunday evening notification with the week's summary. */
   weeklySummary: boolean;
+  /** Nudge after this many days without the gym; 0 turns it off. */
+  inactivityDays: number;
   /** Last automatic backup kept inside the app. */
   lastSnapshotAt: number | null;
   /** Last backup exported off the phone (share sheet). */
@@ -21,6 +23,7 @@ const DEFAULTS: Settings = {
   restDefaultS: 90,
   weeklyGoal: 3,
   weeklySummary: true,
+  inactivityDays: 3,
   lastSnapshotAt: null,
   lastExportAt: null,
 };

@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Keyboard, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExercisePicker } from '@/components/exercise-picker';
@@ -19,6 +19,7 @@ import {
   moveExerciseInWorkout,
   recordsBefore,
   removeExerciseFromWorkout,
+  setRemainingWeight,
   setSetDone,
   updateSet,
   type PreviousSet,
@@ -29,8 +30,8 @@ import {
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import { prFlags, type ExerciseRecord } from '@/logic/records';
-import { fromDisplay, toDisplay, type Unit } from '@/logic/units';
-import { formatDuration } from '@/logic/workout';
+import { formatWeight, fromDisplay, toDisplay, type Unit } from '@/logic/units';
+import { currentExerciseIndex, formatDuration } from '@/logic/workout';
 import { addRest, startRest, stopRest, useRestTimer } from '@/state/rest-timer';
 
 const parseNumber = (s: string) => {
@@ -53,11 +54,21 @@ export default function WorkoutScreen() {
   const workoutId = Number(id);
   const [picking, setPicking] = useState(false);
   const [data, reload] = useFocusData(loadWorkout, workoutId);
+  const scrollRef = useRef<ScrollView>(null);
+  const scrolledToCurrent = useRef(false);
 
   if (!data) return <Screen>{null}</Screen>;
   const { detail, settings, records } = data;
   if (!detail) return <Screen>{<ThemedText>Séance introuvable.</ThemedText>}</Screen>;
   const active = detail.endedAt === null;
+  const current = active ? currentExerciseIndex(detail.exercises) : 0;
+
+  // Opening a workout in progress jumps to the exercise being done, once.
+  const scrollToCurrent = (e: LayoutChangeEvent) => {
+    if (scrolledToCurrent.current) return;
+    scrolledToCurrent.current = true;
+    scrollRef.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - 12), animated: false });
+  };
 
   const close = async () => {
     const { kept } = await finishWorkout(workoutId);
@@ -101,7 +112,7 @@ export default function WorkoutScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: detail.name }} />
-      <Screen>
+      <Screen scrollRef={scrollRef}>
         <Summary detail={detail} />
         {detail.exercises.length === 0 && (
           <ThemedText themeColor="textSecondary">Ajoute tes exercices pour commencer.</ThemedText>
@@ -111,11 +122,13 @@ export default function WorkoutScreen() {
             key={ex.exerciseId}
             workoutId={workoutId}
             exercise={ex}
+            active={active}
             isFirst={i === 0}
             isLast={i === detail.exercises.length - 1}
             unit={settings.unit}
             record={records.get(ex.exerciseId)}
             onChange={reload}
+            onLayout={i === current && i > 0 ? scrollToCurrent : undefined}
           />
         ))}
         <Button label="＋ Ajouter des exercices" variant="secondary" onPress={() => setPicking(true)} />
@@ -168,20 +181,34 @@ function Summary({ detail }: { detail: WorkoutDetail }) {
 function ExerciseCard({
   workoutId,
   exercise,
+  active,
   isFirst,
   isLast,
   unit,
   record,
   onChange,
+  onLayout,
 }: {
   workoutId: number;
   exercise: WorkoutExercise;
+  active: boolean;
   isFirst: boolean;
   isLast: boolean;
   unit: Unit;
   record: ExerciseRecord | undefined;
   onChange: () => void;
+  onLayout?: (e: LayoutChangeEvent) => void;
 }) {
+  const theme = useTheme();
+  const [plateauHidden, setPlateauHidden] = useState(false);
+  const showPlateau =
+    active && !plateauHidden && exercise.plateau !== null && exercise.sets.some((s) => s.completedAt === null);
+
+  const applyDeload = async () => {
+    await setRemainingWeight(workoutId, exercise.exerciseId, exercise.plateau!.deloadKg);
+    setPlateauHidden(true);
+    onChange();
+  };
   const move = async (delta: -1 | 1) => {
     await moveExerciseInWorkout(workoutId, exercise.exerciseId, delta);
     onChange();
@@ -206,7 +233,7 @@ function ExerciseCard({
   ].filter(Boolean);
 
   return (
-    <Card>
+    <Card onLayout={onLayout}>
       <Row style={styles.exerciseHeader}>
         <Pressable style={{ flex: 1 }} onPress={() => router.push(`/exercise/${exercise.exerciseId}`)} hitSlop={6}>
           <ThemedText type="default" style={{ fontWeight: 700 }}>
@@ -220,6 +247,19 @@ function ExerciseCard({
         <Button label="↓" variant="ghost" small disabled={isLast} onPress={() => move(1)} />
         <Button label="✕" variant="danger" small onPress={remove} />
       </Row>
+      {showPlateau && (
+        <View style={[styles.plateau, { borderColor: theme.accent }]}>
+          <ThemedText type="small">
+            ⚠️ Pas de progrès depuis 3 séances. Un deload à{' '}
+            <ThemedText type="smallBold">{formatWeight(exercise.plateau!.deloadKg, unit)}</ThemedText> (−10 %)
+            aide souvent à repartir.
+          </ThemedText>
+          <Row>
+            <Button label="Appliquer" small onPress={applyDeload} />
+            <Button label="Ignorer" variant="ghost" small onPress={() => setPlateauHidden(true)} />
+          </Row>
+        </View>
+      )}
       <Row>
         <ThemedText type="small" themeColor="textSecondary" style={styles.colIndex}>
           #
@@ -237,8 +277,8 @@ function ExerciseCard({
       </Row>
       {exercise.sets.map((set, i) => (
         <SetRow
-          // Remount when the unit changes so the fields show the new unit.
-          key={`${set.id}-${unit}`}
+          // Remount when the unit or the saved weight changes (e.g. a deload) so the fields follow.
+          key={`${set.id}-${unit}-${set.weightKg}`}
           index={i}
           set={set}
           previous={exercise.previous[i]}
@@ -396,6 +436,7 @@ function RestBar() {
           </ThemedText>
           <ThemedText type="subtitle">{mmss(Math.ceil(remaining))}</ThemedText>
         </View>
+        <Button label="−15 s" variant="secondary" small onPress={() => addRest(-15)} />
         <Button label="+15 s" variant="secondary" small onPress={() => addRest(15)} />
         <Button label={remaining > 0 ? 'Passer' : 'OK'} small onPress={stopRest} />
       </Row>
@@ -413,6 +454,7 @@ const styles = StyleSheet.create({
   colCheck: { width: 34 },
   check: { height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   pr: { marginLeft: 26, marginTop: 2 },
+  plateau: { borderWidth: 1, borderRadius: 10, padding: 10, gap: 8 },
   restBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 10, paddingHorizontal: 16 },
   restProgress: { position: 'absolute', top: 0, left: 0, height: 3 },
   restRow: { gap: 8 },

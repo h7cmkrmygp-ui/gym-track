@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import {
   InputAccessoryView,
   Keyboard,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TextInput,
   View,
+  type LayoutChangeEvent,
   type StyleProp,
   type TextInputProps,
   type ViewStyle,
@@ -19,11 +20,21 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Scrollable page. Tab screens pass a `title`; stack screens get theirs from the header. */
-export function Screen({ title, children }: { title?: string; children: ReactNode }) {
+export function Screen({
+  title,
+  children,
+  scrollRef,
+}: {
+  title?: string;
+  children: ReactNode;
+  /** To scroll the page from the screen, e.g. to the exercise in progress. */
+  scrollRef?: RefObject<ScrollView | null>;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ backgroundColor: theme.background }}
       // Tab screens pad for the status bar themselves; stack screens let iOS account for the header.
       contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'}
@@ -40,9 +51,21 @@ export function Screen({ title, children }: { title?: string; children: ReactNod
   );
 }
 
-export function Card({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function Card({
+  children,
+  style,
+  onLayout,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+  onLayout?: (e: LayoutChangeEvent) => void;
+}) {
   const theme = useTheme();
-  return <View style={[styles.card, { backgroundColor: theme.backgroundElement }, style]}>{children}</View>;
+  return (
+    <View style={[styles.card, { backgroundColor: theme.backgroundElement }, style]} onLayout={onLayout}>
+      {children}
+    </View>
+  );
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {

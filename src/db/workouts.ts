@@ -1,5 +1,6 @@
+import { deloadWeight, isPlateau } from '@/logic/plateau';
 import { planSets } from '@/logic/progression';
-import { computeRecords, type ExerciseRecord, type LoggedSet } from '@/logic/records';
+import { computeRecords, progressSeries, type ExerciseRecord, type LoggedSet } from '@/logic/records';
 import { fromDisplay, weightStep } from '@/logic/units';
 import { moveItem } from '@/logic/workout';
 
@@ -22,6 +23,8 @@ export type WorkoutExercise = {
   sets: WorkoutSet[];
   /** Sets from the last workout that included this exercise, for the "previous" column. */
   previous: PreviousSet[];
+  /** Set when the last 3 sessions brought no progress: a lighter weight to restart from. */
+  plateau: { deloadKg: number } | null;
 };
 
 export type WorkoutDetail = Workout & { exercises: WorkoutExercise[] };
@@ -123,7 +126,7 @@ export async function getWorkoutDetail(id: number): Promise<WorkoutDetail | null
   );
 
   const template = workout.templateId === null ? null : await getTemplate(workout.templateId);
-  const { restDefaultS } = await getSettings();
+  const { restDefaultS, unit } = await getSettings();
 
   // Exercises keep the order in which they first appear.
   const groups = new Map<number, WorkoutExercise>();
@@ -138,6 +141,7 @@ export async function getWorkoutDetail(id: number): Promise<WorkoutDetail | null
         target: planned ? { sets: planned.targetSets, reps: planned.targetReps } : null,
         sets: [],
         previous: [],
+        plateau: null,
       };
       groups.set(set.exerciseId, group);
     }
@@ -145,6 +149,12 @@ export async function getWorkoutDetail(id: number): Promise<WorkoutDetail | null
   }
   for (const group of groups.values()) {
     group.previous = await previousSets(group.exerciseId, workout.startedAt);
+    const history = progressSeries(
+      (await completedSetsForExercise(group.exerciseId)).filter((s) => s.at < workout.startedAt),
+    );
+    if (isPlateau(history)) {
+      group.plateau = { deloadKg: deloadWeight(history[history.length - 1].maxWeight, unit) };
+    }
   }
   return { ...workout, exercises: [...groups.values()] };
 }
@@ -207,6 +217,17 @@ export async function moveExerciseInWorkout(workoutId: number, exerciseId: numbe
       }
     }
   });
+}
+
+/** Puts the exercise's sets still to do at one weight (e.g. a deload). */
+export async function setRemainingWeight(workoutId: number, exerciseId: number, weightKg: number) {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE sets SET weight_kg = ? WHERE workout_id = ? AND exercise_id = ? AND completed_at IS NULL',
+    weightKg,
+    workoutId,
+    exerciseId,
+  );
 }
 
 /** Sets with reps entered but not ticked: probably done, just not checked. */

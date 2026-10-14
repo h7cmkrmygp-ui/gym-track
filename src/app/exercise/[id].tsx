@@ -9,6 +9,7 @@ import { getExercise } from '@/db/exercises';
 import { getSettings } from '@/db/settings';
 import { exerciseHistory } from '@/db/workouts';
 import { useFocusData } from '@/hooks/use-focus-data';
+import { isPlateau } from '@/logic/plateau';
 import { computeRecords, progressSeries, type LoggedSet } from '@/logic/records';
 import { formatWeight, toDisplay } from '@/logic/units';
 
@@ -49,6 +50,14 @@ export default function ExerciseScreen() {
           <ThemedText themeColor="textSecondary">Pas encore de séance terminée avec cet exercice.</ThemedText>
         ) : (
           <>
+            {isPlateau(series) && (
+              <Card>
+                <ThemedText type="small">
+                  ⚠️ Pas de progrès depuis 3 séances. Un deload (−10 % pendant une séance) aide souvent à repartir :
+                  l&apos;app te le proposera à ta prochaine séance.
+                </ThemedText>
+              </Card>
+            )}
             {record && (
               <Card>
                 <Row style={styles.between}>
