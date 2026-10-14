@@ -1,6 +1,7 @@
 import { planSets } from '@/logic/progression';
 import { computeRecords, type ExerciseRecord, type LoggedSet } from '@/logic/records';
 import { fromDisplay, weightStep } from '@/logic/units';
+import { moveItem } from '@/logic/workout';
 
 import { getDb } from './client';
 import { getSettings } from './settings';
@@ -16,6 +17,8 @@ export type WorkoutExercise = {
   exerciseId: number;
   name: string;
   restS: number;
+  /** Planned sets × reps when the workout comes from a template. */
+  target: { sets: number; reps: number } | null;
   sets: WorkoutSet[];
   /** Sets from the last workout that included this exercise, for the "previous" column. */
   previous: PreviousSet[];
@@ -127,8 +130,15 @@ export async function getWorkoutDetail(id: number): Promise<WorkoutDetail | null
   for (const { name, ...set } of sets) {
     let group = groups.get(set.exerciseId);
     if (!group) {
-      const restS = template?.exercises.find((e) => e.exerciseId === set.exerciseId)?.restS ?? restDefaultS;
-      group = { exerciseId: set.exerciseId, name, restS, sets: [], previous: [] };
+      const planned = template?.exercises.find((e) => e.exerciseId === set.exerciseId);
+      group = {
+        exerciseId: set.exerciseId,
+        name,
+        restS: planned?.restS ?? restDefaultS,
+        target: planned ? { sets: planned.targetSets, reps: planned.targetReps } : null,
+        sets: [],
+        previous: [],
+      };
       groups.set(set.exerciseId, group);
     }
     group.sets.push(set);
@@ -178,6 +188,44 @@ export async function setSetDone(setId: number, done: boolean) {
 export async function deleteSet(setId: number) {
   const db = await getDb();
   await db.runAsync('DELETE FROM sets WHERE id = ?', setId);
+}
+
+/** Moves an exercise (all its sets) up or down; the order is the order of set positions. */
+export async function moveExerciseInWorkout(workoutId: number, exerciseId: number, delta: -1 | 1) {
+  const db = await getDb();
+  const sets = await db.getAllAsync<{ id: number; exercise_id: number }>(
+    'SELECT id, exercise_id FROM sets WHERE workout_id = ? ORDER BY position',
+    workoutId,
+  );
+  const order = [...new Set(sets.map((s) => s.exercise_id))];
+  const moved = moveItem(order, order.indexOf(exerciseId), delta);
+  await db.withTransactionAsync(async () => {
+    let position = 0;
+    for (const id of moved) {
+      for (const s of sets.filter((s) => s.exercise_id === id)) {
+        await db.runAsync('UPDATE sets SET position = ? WHERE id = ?', position++, s.id);
+      }
+    }
+  });
+}
+
+/** Sets with reps entered but not ticked: probably done, just not checked. */
+export async function countUncheckedSets(workoutId: number): Promise<number> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM sets WHERE workout_id = ? AND completed_at IS NULL AND reps > 0',
+    workoutId,
+  );
+  return row?.n ?? 0;
+}
+
+export async function completeUncheckedSets(workoutId: number) {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE sets SET completed_at = ? WHERE workout_id = ? AND completed_at IS NULL AND reps > 0',
+    Date.now(),
+    workoutId,
+  );
 }
 
 export async function removeExerciseFromWorkout(workoutId: number, exerciseId: number) {

@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import {
+  InputAccessoryView,
+  Keyboard,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -25,12 +28,14 @@ export function Screen({ title, children }: { title?: string; children: ReactNod
       // Tab screens pad for the status bar themselves; stack screens let iOS account for the header.
       contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
       contentContainerStyle={[
         styles.screen,
         { paddingTop: title ? insets.top + Spacing.three : Spacing.three },
       ]}>
       {title && <ThemedText type="subtitle">{title}</ThemedText>}
       {children}
+      <KeyboardDoneBar />
     </ScrollView>
   );
 }
@@ -147,14 +152,33 @@ export function Stepper({
   );
 }
 
+const NUMERIC_KEYBOARDS = new Set(['number-pad', 'decimal-pad', 'numeric']);
+const KEYBOARD_DONE_ID = 'keyboard-done';
+
 export function Input(props: TextInputProps) {
   const theme = useTheme();
+  // iOS number pads have no key to close them: they get the "OK" bar from <Screen>.
+  const numeric = Platform.OS === 'ios' && NUMERIC_KEYBOARDS.has(props.keyboardType ?? '');
   return (
     <TextInput
       placeholderTextColor={theme.textSecondary}
+      inputAccessoryViewID={numeric ? KEYBOARD_DONE_ID : undefined}
       {...props}
       style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundSelected }, props.style]}
     />
+  );
+}
+
+/** "OK" bar shown above number pads. Rendered once per screen by <Screen>. */
+function KeyboardDoneBar() {
+  const theme = useTheme();
+  if (Platform.OS !== 'ios') return null;
+  return (
+    <InputAccessoryView nativeID={KEYBOARD_DONE_ID}>
+      <View style={[styles.keyboardBar, { backgroundColor: theme.backgroundElement }]}>
+        <Button label="OK" small onPress={Keyboard.dismiss} />
+      </View>
+    </InputAccessoryView>
   );
 }
 
@@ -187,5 +211,6 @@ const styles = StyleSheet.create({
   stepperButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   stepperValue: { minWidth: 44, textAlign: 'center' },
   input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  keyboardBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.three, paddingVertical: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

@@ -44,6 +44,8 @@ export default function HistoryScreen() {
     d.setDate(1);
     d.setMonth(d.getMonth() + delta);
     setMonth(d.getTime());
+    // The selected day's details only make sense for the month on screen.
+    setSelected(null);
   };
 
   return (

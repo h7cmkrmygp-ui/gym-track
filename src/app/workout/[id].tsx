@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExercisePicker } from '@/components/exercise-picker';
@@ -10,15 +10,19 @@ import { getSettings } from '@/db/settings';
 import {
   addExerciseToWorkout,
   addSet,
+  completeUncheckedSets,
+  countUncheckedSets,
   deleteSet,
   deleteWorkout,
   finishWorkout,
   getWorkoutDetail,
+  moveExerciseInWorkout,
   recordsBefore,
   removeExerciseFromWorkout,
   setSetDone,
   updateSet,
   type PreviousSet,
+  type WorkoutDetail,
   type WorkoutExercise,
   type WorkoutSet,
 } from '@/db/workouts';
@@ -26,6 +30,7 @@ import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import { prFlags, type ExerciseRecord } from '@/logic/records';
 import { fromDisplay, toDisplay, type Unit } from '@/logic/units';
+import { formatDuration } from '@/logic/workout';
 import { addRest, startRest, stopRest, useRestTimer } from '@/state/rest-timer';
 
 const parseNumber = (s: string) => {
@@ -54,11 +59,29 @@ export default function WorkoutScreen() {
   if (!detail) return <Screen>{<ThemedText>Séance introuvable.</ThemedText>}</Screen>;
   const active = detail.endedAt === null;
 
-  const finish = async () => {
+  const close = async () => {
     const { kept } = await finishWorkout(workoutId);
     await stopRest();
-    if (!kept) Alert.alert('Séance vide', 'Aucune série cochée : la séance n’a pas été gardée.');
+    if (!kept) Alert.alert('Séance vide', 'Aucune série faite : la séance n’a pas été gardée.');
     router.back();
+  };
+
+  const finish = async () => {
+    Keyboard.dismiss();
+    const unchecked = await countUncheckedSets(workoutId);
+    if (unchecked === 0) return close();
+    const s = unchecked > 1 ? 's' : '';
+    Alert.alert(`${unchecked} série${s} pas cochée${s}`, `Tu l${s ? 'es' : 'a'} as faite${s} ?`, [
+      {
+        text: `Oui, ${s ? 'les' : 'la'} compter`,
+        onPress: async () => {
+          await completeUncheckedSets(workoutId);
+          await close();
+        },
+      },
+      { text: `Non, ${s ? 'les' : 'la'} supprimer`, style: 'destructive', onPress: close },
+      { text: 'Continuer la séance', style: 'cancel' },
+    ]);
   };
 
   const confirmDelete = () =>
@@ -79,20 +102,23 @@ export default function WorkoutScreen() {
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: detail.name }} />
       <Screen>
+        <Summary detail={detail} />
         {detail.exercises.length === 0 && (
-          <ThemedText themeColor="textSecondary">Ajoute un premier exercice pour commencer.</ThemedText>
+          <ThemedText themeColor="textSecondary">Ajoute tes exercices pour commencer.</ThemedText>
         )}
-        {detail.exercises.map((ex) => (
+        {detail.exercises.map((ex, i) => (
           <ExerciseCard
             key={ex.exerciseId}
             workoutId={workoutId}
             exercise={ex}
+            isFirst={i === 0}
+            isLast={i === detail.exercises.length - 1}
             unit={settings.unit}
             record={records.get(ex.exerciseId)}
             onChange={reload}
           />
         ))}
-        <Button label="+ Ajouter un exercice" variant="secondary" onPress={() => setPicking(true)} />
+        <Button label="＋ Ajouter des exercices" variant="secondary" onPress={() => setPicking(true)} />
         {active ? (
           <>
             <Button label="Terminer la séance" onPress={finish} />
@@ -106,9 +132,9 @@ export default function WorkoutScreen() {
       <ExercisePicker
         visible={picking}
         onClose={() => setPicking(false)}
-        onPick={async (ex) => {
+        onPick={async (exercises) => {
           setPicking(false);
-          await addExerciseToWorkout(workoutId, ex.id);
+          for (const ex of exercises) await addExerciseToWorkout(workoutId, ex.id);
           reload();
         }}
       />
@@ -116,19 +142,51 @@ export default function WorkoutScreen() {
   );
 }
 
+/** "12/18 séries · 42 min" while training, the date and length afterwards. */
+function Summary({ detail }: { detail: WorkoutDetail }) {
+  const active = detail.endedAt === null;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active) return;
+    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(interval);
+  }, [active]);
+
+  const sets = detail.exercises.flatMap((e) => e.sets);
+  const done = sets.filter((s) => s.completedAt !== null).length;
+  const duration = formatDuration((detail.endedAt ?? now) - detail.startedAt);
+  const date = new Date(detail.startedAt).toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  return (
+    <ThemedText type="smallBold" themeColor="textSecondary" style={styles.summary}>
+      {active ? `${done}/${sets.length} séries · ${duration}` : `${date} · ${duration} · ${done} séries`}
+    </ThemedText>
+  );
+}
+
 function ExerciseCard({
   workoutId,
   exercise,
+  isFirst,
+  isLast,
   unit,
   record,
   onChange,
 }: {
   workoutId: number;
   exercise: WorkoutExercise;
+  isFirst: boolean;
+  isLast: boolean;
   unit: Unit;
   record: ExerciseRecord | undefined;
   onChange: () => void;
 }) {
+  const move = async (delta: -1 | 1) => {
+    await moveExerciseInWorkout(workoutId, exercise.exerciseId, delta);
+    onChange();
+  };
+
   const remove = () =>
     Alert.alert(`Retirer ${exercise.name} ?`, undefined, [
       { text: 'Annuler', style: 'cancel' },
@@ -142,6 +200,11 @@ function ExerciseCard({
       },
     ]);
 
+  const details = [
+    exercise.target && `Objectif ${exercise.target.sets} × ${exercise.target.reps}`,
+    `Repos ${mmss(exercise.restS)}`,
+  ].filter(Boolean);
+
   return (
     <Card>
       <Row style={styles.exerciseHeader}>
@@ -150,10 +213,12 @@ function ExerciseCard({
             {exercise.name}
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Repos {mmss(exercise.restS)}
+            {details.join(' · ')}
           </ThemedText>
         </View>
-        <Button label="Retirer" variant="danger" small onPress={remove} />
+        <Button label="↑" variant="ghost" small disabled={isFirst} onPress={() => move(-1)} />
+        <Button label="↓" variant="ghost" small disabled={isLast} onPress={() => move(1)} />
+        <Button label="✕" variant="danger" small onPress={remove} />
       </Row>
       <Row>
         <ThemedText type="small" themeColor="textSecondary" style={styles.colIndex}>
@@ -172,7 +237,8 @@ function ExerciseCard({
       </Row>
       {exercise.sets.map((set, i) => (
         <SetRow
-          key={set.id}
+          // Remount when the unit changes so the fields show the new unit.
+          key={`${set.id}-${unit}`}
           index={i}
           set={set}
           previous={exercise.previous[i]}
@@ -183,7 +249,7 @@ function ExerciseCard({
         />
       ))}
       <Button
-        label="+ Série"
+        label="＋ Série"
         variant="ghost"
         small
         onPress={async () => {
@@ -220,13 +286,23 @@ function SetRow({
   // Prefilled heavier than last time: the progression suggestion.
   const progressed = !done && previous !== undefined && set.weightKg > previous.weightKg + 0.01;
 
-  const save = () => updateSet(set.id, fromDisplay(parseNumber(weight), unit), Math.round(parseNumber(reps)));
+  // Saved on every keystroke, so nothing is lost when leaving the screen with the keyboard open.
+  const save = (w: string, r: string) => updateSet(set.id, fromDisplay(parseNumber(w), unit), Math.round(parseNumber(r)));
 
   const toggle = async () => {
-    await save();
+    await save(weight, reps);
     await setSetDone(set.id, !done);
     if (!done) startRest(exercise.restS, exercise.name);
     onChange();
+  };
+
+  const copyPrevious = async () => {
+    if (!previous || done) return;
+    const w = previous.weightKg ? String(toDisplay(previous.weightKg, unit)) : '';
+    const r = String(previous.reps);
+    setWeight(w);
+    setReps(r);
+    await updateSet(set.id, previous.weightKg, previous.reps);
   };
 
   const confirmDelete = () =>
@@ -248,15 +324,19 @@ function SetRow({
         <ThemedText type="smallBold" style={styles.colIndex}>
           {index + 1}
         </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.colPrev} numberOfLines={1}>
-          {previous ? `${toDisplay(previous.weightKg, unit)}×${previous.reps}` : '—'}
-          {progressed && <ThemedText type="smallBold" style={{ color: theme.accent }}> ↑</ThemedText>}
-        </ThemedText>
+        <Pressable style={styles.colPrev} onPress={copyPrevious} hitSlop={6}>
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+            {previous ? `${toDisplay(previous.weightKg, unit)}×${previous.reps}` : '—'}
+            {progressed && <ThemedText type="smallBold" style={{ color: theme.accent }}> ↑</ThemedText>}
+          </ThemedText>
+        </Pressable>
         <Input
           style={styles.colInput}
           value={weight}
-          onChangeText={setWeight}
-          onEndEditing={save}
+          onChangeText={(w) => {
+            setWeight(w);
+            save(w, reps);
+          }}
           keyboardType="decimal-pad"
           placeholder="0"
           selectTextOnFocus
@@ -264,8 +344,10 @@ function SetRow({
         <Input
           style={styles.colInput}
           value={reps}
-          onChangeText={setReps}
-          onEndEditing={save}
+          onChangeText={(r) => {
+            setReps(r);
+            save(weight, r);
+          }}
           keyboardType="number-pad"
           placeholder="0"
           selectTextOnFocus
@@ -273,11 +355,7 @@ function SetRow({
         <Pressable
           onPress={toggle}
           hitSlop={8}
-          style={[
-            styles.colCheck,
-            styles.check,
-            { backgroundColor: done ? theme.success : theme.backgroundSelected },
-          ]}>
+          style={[styles.colCheck, styles.check, { backgroundColor: done ? theme.success : theme.backgroundSelected }]}>
           <ThemedText type="smallBold" style={{ color: done ? '#fff' : theme.textSecondary }}>
             ✓
           </ThemedText>
@@ -326,6 +404,7 @@ function RestBar() {
 }
 
 const styles = StyleSheet.create({
+  summary: { textTransform: 'capitalize' },
   exerciseHeader: { alignItems: 'flex-start' },
   setRow: { borderRadius: 8, paddingVertical: 4, paddingHorizontal: 4 },
   colIndex: { width: 18, textAlign: 'center' },

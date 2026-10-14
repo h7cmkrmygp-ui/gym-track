@@ -7,17 +7,26 @@ import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Input, Row, Screen, SectionTitle, Stepper } from '@/components/ui';
 import { getSettings } from '@/db/settings';
 import { archiveTemplate, getTemplate, saveTemplate, type TemplateExercise } from '@/db/templates';
+import { getActiveWorkout, startWorkout } from '@/db/workouts';
 import { useTheme } from '@/hooks/use-theme';
+import { moveItem } from '@/logic/workout';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+/**
+ * Edits a workout template. With `?start=1` (from the home screen) it plans a workout
+ * to start right away, optionally kept for later.
+ */
 export default function TemplateScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, start } = useLocalSearchParams<{ id: string; start?: string }>();
   const templateId = id === 'new' ? null : Number(id);
+  const planning = start === '1';
   const [loaded, setLoaded] = useState(templateId === null);
   const [name, setName] = useState('');
-  const [inRotation, setInRotation] = useState(true);
+  // A one-off workout should not change which session the split suggests next.
+  const [inRotation, setInRotation] = useState(!planning);
+  const [keep, setKeep] = useState(true);
   const [exercises, setExercises] = useState<TemplateExercise[]>([]);
   const [restDefault, setRestDefault] = useState(90);
   const [picking, setPicking] = useState(false);
@@ -38,15 +47,6 @@ export default function TemplateScreen() {
   const update = (i: number, patch: Partial<TemplateExercise>) =>
     setExercises((list) => list.map((e, j) => (j === i ? { ...e, ...patch } : e)));
 
-  const move = (i: number, delta: -1 | 1) =>
-    setExercises((list) => {
-      const j = i + delta;
-      if (j < 0 || j >= list.length) return list;
-      const copy = [...list];
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-      return copy;
-    });
-
   const save = async () => {
     if (!name.trim()) {
       Alert.alert('Donne un nom à la séance', 'Par exemple Push, Pull, Legs, Haut du corps…');
@@ -54,6 +54,26 @@ export default function TemplateScreen() {
     }
     await saveTemplate(templateId, name.trim(), inRotation, exercises);
     router.back();
+  };
+
+  const saveAndStart = async () => {
+    if (exercises.length === 0) {
+      Alert.alert('Ajoute au moins un exercice');
+      return;
+    }
+    const active = await getActiveWorkout();
+    if (active) {
+      Alert.alert('Une séance est déjà en cours', `Termine « ${active.name} » avant d’en commencer une autre.`, [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Reprendre', onPress: () => router.replace(`/workout/${active.id}`) },
+      ]);
+      return;
+    }
+    const savedId = await saveTemplate(templateId, name.trim() || 'Ma séance', keep && inRotation, exercises);
+    const workoutId = await startWorkout(savedId);
+    // Not kept: the workout still links to it (for rest times), but it leaves the list.
+    if (!keep) await archiveTemplate(savedId);
+    router.replace(`/workout/${workoutId}`);
   };
 
   const remove = () =>
@@ -71,30 +91,38 @@ export default function TemplateScreen() {
 
   if (!loaded) return <Screen>{null}</Screen>;
 
+  const title = planning ? 'Créer une séance' : templateId === null ? 'Nouvelle séance' : name || 'Séance';
+
   return (
     <>
-      <Stack.Screen options={{ title: templateId === null ? 'Nouvelle séance' : name || 'Séance' }} />
+      <Stack.Screen options={{ title }} />
       <Screen>
-        <Input placeholder="Nom (ex. Push)" value={name} onChangeText={setName} />
-        <Card>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <View style={{ flex: 1 }}>
-              <ThemedText>Dans la rotation</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                L&apos;accueil te propose les séances de la rotation à tour de rôle.
-              </ThemedText>
-            </View>
-            <Switch value={inRotation} onValueChange={setInRotation} trackColor={{ true: theme.accent }} />
-          </Row>
-        </Card>
+        <Input
+          placeholder={planning ? 'Nom (optionnel, ex. Bras)' : 'Nom (ex. Push)'}
+          value={name}
+          onChangeText={setName}
+        />
 
         <SectionTitle>Exercices</SectionTitle>
+        {exercises.length === 0 && (
+          <ThemedText themeColor="textSecondary">
+            Ajoute tes exercices, puis règle les séries, les reps et le repos de chacun.
+          </ThemedText>
+        )}
         {exercises.map((ex, i) => (
           <Card key={`${ex.exerciseId}-${i}`}>
             <Row>
-              <ThemedText style={{ flex: 1, fontWeight: 700 }}>{ex.name}</ThemedText>
-              <Button label="↑" variant="ghost" small onPress={() => move(i, -1)} />
-              <Button label="↓" variant="ghost" small onPress={() => move(i, 1)} />
+              <ThemedText style={{ flex: 1, fontWeight: 700 }}>
+                {i + 1}. {ex.name}
+              </ThemedText>
+              <Button label="↑" variant="ghost" small disabled={i === 0} onPress={() => setExercises((l) => moveItem(l, i, -1))} />
+              <Button
+                label="↓"
+                variant="ghost"
+                small
+                disabled={i === exercises.length - 1}
+                onPress={() => setExercises((l) => moveItem(l, i, 1))}
+              />
               <Button
                 label="✕"
                 variant="danger"
@@ -129,18 +157,55 @@ export default function TemplateScreen() {
             </Row>
           </Card>
         ))}
-        <Button label="+ Ajouter un exercice" variant="secondary" onPress={() => setPicking(true)} />
-        <Button label="Enregistrer" onPress={save} />
+        <Button label="＋ Ajouter des exercices" variant="secondary" onPress={() => setPicking(true)} />
+
+        <Card>
+          {planning && (
+            <Row style={styles.field}>
+              <View style={{ flex: 1 }}>
+                <ThemedText>Garder dans mes séances</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Pour la refaire plus tard sans tout recréer.
+                </ThemedText>
+              </View>
+              <Switch value={keep} onValueChange={setKeep} trackColor={{ true: theme.accent }} />
+            </Row>
+          )}
+          {(!planning || keep) && (
+            <Row style={styles.field}>
+              <View style={{ flex: 1 }}>
+                <ThemedText>Dans la rotation</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  L&apos;accueil te propose les séances de la rotation à tour de rôle.
+                </ThemedText>
+              </View>
+              <Switch value={inRotation} onValueChange={setInRotation} trackColor={{ true: theme.accent }} />
+            </Row>
+          )}
+        </Card>
+
+        {planning ? (
+          <Button label="Commencer la séance" onPress={saveAndStart} />
+        ) : (
+          <>
+            <Button label="Enregistrer" onPress={save} />
+            <Button
+              label={templateId === null ? 'Enregistrer et commencer' : 'Commencer cette séance'}
+              variant="secondary"
+              onPress={saveAndStart}
+            />
+          </>
+        )}
         {templateId !== null && <Button label="Supprimer cette séance" variant="danger" onPress={remove} />}
       </Screen>
       <ExercisePicker
         visible={picking}
         onClose={() => setPicking(false)}
-        onPick={(ex) => {
+        onPick={(picked) => {
           setPicking(false);
           setExercises((list) => [
             ...list,
-            { exerciseId: ex.id, name: ex.name, targetSets: 3, targetReps: 10, restS: restDefault },
+            ...picked.map((ex) => ({ exerciseId: ex.id, name: ex.name, targetSets: 3, targetReps: 10, restS: restDefault })),
           ]);
         }}
       />

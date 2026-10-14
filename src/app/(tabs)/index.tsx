@@ -126,7 +126,7 @@ export default function HomeScreen() {
               reload();
             }}
           />
-          <Button label="Créer ma propre séance" variant="secondary" onPress={() => router.push('/template/new')} />
+          <Button label="＋ Créer une séance" variant="secondary" onPress={() => router.push('/template/new?start=1')} />
           <Button label="Séance libre" variant="ghost" onPress={() => start(null)} />
         </Card>
       ) : (
@@ -145,6 +145,7 @@ export default function HomeScreen() {
             ))}
             <Button label="Séance libre" variant="secondary" small onPress={() => start(null)} />
           </View>
+          <Button label="＋ Créer une séance" variant="secondary" onPress={() => router.push('/template/new?start=1')} />
         </>
       )}
     </Screen>
