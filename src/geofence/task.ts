@@ -35,7 +35,7 @@ export async function handleGeofenceEvent(gymId: number, eventType: Location.Geo
   if (!started) return;
   const gym = (await listGyms()).find((g) => g.id === gymId);
   const next = nextInRotation(await listTemplates(), await lastRotationTemplateId());
-  await notifyArrival(gym?.name ?? 'la salle', next?.name ?? null);
+  await notifyArrival(gym?.name ?? 'la salle', next ? { id: next.id, name: next.name } : null);
 }
 
 TaskManager.defineTask<GeofenceEvent>(GEOFENCE_TASK, async ({ data, error }) => {

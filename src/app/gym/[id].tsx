@@ -173,7 +173,7 @@ export default function GymScreen() {
                   radius={radius}
                   strokeColor={theme.accent}
                   strokeWidth={2}
-                  fillColor="rgba(232, 89, 12, 0.18)"
+                  fillColor="rgba(227, 211, 181, 0.22)"
                 />
                 <Marker
                   coordinate={toLatLng(pin)}

@@ -2,23 +2,47 @@
 import '@/geofence/task';
 
 import * as Notifications from 'expo-notifications';
-import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { useEffect } from 'react';
-import { AppState, useColorScheme } from 'react-native';
+import { AppState } from 'react-native';
 
+import { Colors } from '@/constants/theme';
 import { getDb } from '@/db/client';
 import { syncGeofences } from '@/geofence/regions';
+import { endRestActivity } from '@/live-activity';
+import { handleNotificationResponse } from '@/notifications/responses';
 import { refreshWidget } from '@/widget';
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+// The app is always dark (app.json); headers and backgrounds use the logo's colors.
+const navigationTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: Colors.dark.accent,
+    background: Colors.dark.background,
+    card: Colors.dark.background,
+    text: Colors.dark.text,
+    border: Colors.dark.backgroundSelected,
+  },
+};
 
+export default function RootLayout() {
   useEffect(() => {
     getDb()
-      .then(() => Promise.all([syncGeofences(), refreshWidget()]))
+      .then(async () => {
+        await Promise.all([syncGeofences(), refreshWidget()]);
+        // A rest timer does not survive a relaunch; neither should its Live Activity.
+        await endRestActivity();
+        // The app may have been launched by tapping a notification.
+        const launch = await Notifications.getLastNotificationResponseAsync();
+        if (launch) {
+          await handleNotificationResponse(launch);
+          await Notifications.clearLastNotificationResponseAsync();
+        }
+      })
       .catch((e) => console.error(e));
     const notificationSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (response.notification.request.content.data?.url === '/') router.navigate('/');
+      handleNotificationResponse(response).catch((e) => console.error(e));
     });
     // Whatever changed in the app (workout, check-in, split) reaches the widget when leaving it.
     const appStateSub = AppState.addEventListener('change', (state) => {
@@ -31,7 +55,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <Stack screenOptions={{ headerBackTitle: 'Retour' }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="workout/[id]" options={{ title: 'Séance' }} />

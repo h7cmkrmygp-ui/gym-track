@@ -1,4 +1,6 @@
+import { planSets } from '@/logic/progression';
 import { computeRecords, type ExerciseRecord, type LoggedSet } from '@/logic/records';
+import { fromDisplay, weightStep } from '@/logic/units';
 
 import { getDb } from './client';
 import { getSettings } from './settings';
@@ -57,31 +59,40 @@ async function previousSets(exerciseId: number, before: number): Promise<Previou
   );
 }
 
-async function insertSets(workoutId: number, exerciseId: number, count: number, defaultReps: number, before: number) {
+/** Prefills the exercise's sets from last time; `stepKg` > 0 adds weight when every target was hit. */
+async function insertSets(
+  workoutId: number,
+  exerciseId: number,
+  targetSets: number,
+  targetReps: number,
+  before: number,
+  stepKg: number,
+) {
   const db = await getDb();
-  const prev = await previousSets(exerciseId, before);
+  const plan = planSets(await previousSets(exerciseId, before), targetSets, targetReps, stepKg);
   const row = await db.getFirstAsync<{ next: number }>(
     'SELECT COALESCE(MAX(position) + 1, 0) AS next FROM sets WHERE workout_id = ?',
     workoutId,
   );
   let position = row?.next ?? 0;
-  for (let i = 0; i < count; i++) {
-    const p = prev[i] ?? prev[prev.length - 1];
+  for (const set of plan) {
     await db.runAsync(
       'INSERT INTO sets (workout_id, exercise_id, position, weight_kg, reps) VALUES (?, ?, ?, ?, ?)',
       workoutId,
       exerciseId,
       position++,
-      p?.weightKg ?? 0,
-      p?.reps ?? defaultReps,
+      set.weightKg,
+      set.reps,
     );
   }
 }
 
-/** Starts a workout from a template (prefilled with last time's numbers) or an empty one. */
+/** Starts a workout from a template (prefilled with progression on last time) or an empty one. */
 export async function startWorkout(templateId: number | null): Promise<number> {
   const db = await getDb();
   const template = templateId === null ? null : await getTemplate(templateId);
+  const { unit } = await getSettings();
+  const stepKg = fromDisplay(weightStep(unit), unit);
   const now = Date.now();
   const { lastInsertRowId: id } = await db.runAsync(
     'INSERT INTO workouts (template_id, name, started_at) VALUES (?, ?, ?)',
@@ -90,7 +101,7 @@ export async function startWorkout(templateId: number | null): Promise<number> {
     now,
   );
   for (const ex of template?.exercises ?? []) {
-    await insertSets(id, ex.exerciseId, ex.targetSets, ex.targetReps, now);
+    await insertSets(id, ex.exerciseId, ex.targetSets, ex.targetReps, now, stepKg);
   }
   return id;
 }
@@ -131,7 +142,8 @@ export async function getWorkoutDetail(id: number): Promise<WorkoutDetail | null
 export async function addExerciseToWorkout(workoutId: number, exerciseId: number) {
   const db = await getDb();
   const w = await db.getFirstAsync<WorkoutRow>('SELECT * FROM workouts WHERE id = ?', workoutId);
-  await insertSets(workoutId, exerciseId, 3, 10, w?.started_at ?? Date.now());
+  // No target reps outside a template, so no progression: just last time's numbers.
+  await insertSets(workoutId, exerciseId, 3, 10, w?.started_at ?? Date.now(), 0);
 }
 
 /** Adds a set copying the exercise's last set in this workout. */

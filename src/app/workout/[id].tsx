@@ -217,6 +217,8 @@ function SetRow({
   const [reps, setReps] = useState(set.reps ? String(set.reps) : '');
   const done = set.completedAt !== null;
   const flags = done ? prFlags({ ...set, workoutId: 0, at: set.completedAt! }, record) : null;
+  // Prefilled heavier than last time: the progression suggestion.
+  const progressed = !done && previous !== undefined && set.weightKg > previous.weightKg + 0.01;
 
   const save = () => updateSet(set.id, fromDisplay(parseNumber(weight), unit), Math.round(parseNumber(reps)));
 
@@ -248,6 +250,7 @@ function SetRow({
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" style={styles.colPrev} numberOfLines={1}>
           {previous ? `${toDisplay(previous.weightKg, unit)}×${previous.reps}` : '—'}
+          {progressed && <ThemedText type="smallBold" style={{ color: theme.accent }}> ↑</ThemedText>}
         </ThemedText>
         <Input
           style={styles.colInput}
