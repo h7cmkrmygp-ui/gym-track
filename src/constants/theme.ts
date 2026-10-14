@@ -16,6 +16,7 @@ export const Colors = {
     textSecondary: '#60646C',
     accent: '#9C7F52',
     onAccent: '#ffffff',
+    chart: '#9C7F52',
     success: '#2B8A3E',
     danger: '#C92A2A',
   },
@@ -28,6 +29,8 @@ export const Colors = {
     textSecondary: '#9A9AA0',
     accent: '#E3D3B5',
     onAccent: '#111111',
+    /** Bars and chart marks: a deeper gold that stays readable on the dark cards. */
+    chart: '#B98B3E',
     success: '#4C9A6A',
     danger: '#FF6B6B',
   },

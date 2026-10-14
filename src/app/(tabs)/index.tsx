@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
+import { EXPORT_REMINDER_DAYS, shareBackup } from '@/backup';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Row, Screen, SectionTitle } from '@/components/ui';
 import { currentVisit, listVisits, manualCheckIn } from '@/db/gyms';
@@ -12,6 +13,7 @@ import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import { nextInRotation } from '@/logic/rotation';
 import { attendanceDays, dayKey, daysThisWeek, weeklyStreak } from '@/logic/stats';
+import { relativeDay } from '@/logic/widget';
 
 const time = (ts: number) => new Date(ts).toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
 
@@ -38,6 +40,11 @@ async function loadHome() {
     week: daysThisWeek(days, now),
     streak: weeklyStreak(days, settings.weeklyGoal, now),
     geofence,
+    // Nudge to export once there is something to lose and no recent copy off the phone.
+    backupDue:
+      workouts.length > 0 &&
+      (settings.lastExportAt === null || now - settings.lastExportAt > EXPORT_REMINDER_DAYS * 86_400_000),
+    lastExport: settings.lastExportAt === null ? null : relativeDay(settings.lastExportAt, now),
   };
 }
 
@@ -55,6 +62,23 @@ export default function HomeScreen() {
 
   return (
     <Screen title="GymTrack">
+      {data.backupDue && (
+        <Card>
+          <ThemedText type="smallBold">💾 Mets ta progression à l&apos;abri</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {data.lastExport ? `Dernier export : ${data.lastExport}.` : 'Tu n’as encore jamais exporté tes données.'}{' '}
+            Si l&apos;app est supprimée, tout ton historique l&apos;est aussi.
+          </ThemedText>
+          <Button
+            label="Exporter vers iCloud / OneDrive"
+            small
+            onPress={async () => {
+              await shareBackup();
+              reload();
+            }}
+          />
+        </Card>
+      )}
       <Card>
         {data.visit ? (
           <ThemedText>

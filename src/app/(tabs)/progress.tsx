@@ -1,32 +1,44 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { LineChart } from '@/components/line-chart';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Input, Row, Screen, SectionTitle, Segmented } from '@/components/ui';
+import { MUSCLE_GROUPS } from '@/data/exercises.fr';
 import { deleteBodyweight, listBodyweight, logBodyweight } from '@/db/bodyweight';
 import { listTrainedExercises } from '@/db/exercises';
 import { getSettings } from '@/db/settings';
-import { allCompletedSets } from '@/db/workouts';
+import { allCompletedSets, completedSetsWithMuscle } from '@/db/workouts';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import { computeRecords, progressSeries } from '@/logic/records';
-import { dayKey } from '@/logic/stats';
+import { dayKey, weekStart } from '@/logic/stats';
 import { formatWeight, fromDisplay, toDisplay } from '@/logic/units';
+import { setsPerMuscle } from '@/logic/volume';
 
-type Tab = 'exercises' | 'records' | 'bodyweight';
+type Tab = 'exercises' | 'muscles' | 'records' | 'bodyweight';
 type Metric = 'e1rm' | 'max';
 
 const shortDate = (ts: number) => new Date(ts).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short' });
 
 async function loadProgress() {
-  const [settings, exercises, sets, bodyweight] = await Promise.all([
+  const [settings, exercises, sets, bodyweight, muscleSets] = await Promise.all([
     getSettings(),
     listTrainedExercises(),
     allCompletedSets(),
     listBodyweight(),
+    completedSetsWithMuscle(),
   ]);
-  return { unit: settings.unit, exercises, sets, records: computeRecords(sets), bodyweight };
+  return {
+    unit: settings.unit,
+    exercises,
+    sets,
+    records: computeRecords(sets),
+    bodyweight,
+    muscleSets,
+    thisWeek: weekStart(Date.now()).getTime(),
+  };
 }
 
 export default function ProgressScreen() {
@@ -40,11 +52,13 @@ export default function ProgressScreen() {
         onChange={setTab}
         options={[
           { value: 'exercises', label: 'Exercices' },
+          { value: 'muscles', label: 'Muscles' },
           { value: 'records', label: 'Records' },
           { value: 'bodyweight', label: 'Poids' },
         ]}
       />
       {data && tab === 'exercises' && <ExercisesTab data={data} />}
+      {data && tab === 'muscles' && <MusclesTab data={data} />}
       {data && tab === 'records' && <RecordsTab data={data} />}
       {data && tab === 'bodyweight' && <BodyweightTab data={data} onChange={reload} />}
     </Screen>
@@ -100,6 +114,12 @@ function ExercisesTab({ data }: { data: Data }) {
         ) : (
           <LineChart points={points} format={(y) => `${y} ${data.unit}`} />
         )}
+        <Button
+          label="Voir toutes les séances ›"
+          variant="ghost"
+          small
+          onPress={() => router.push(`/exercise/${selected.id}`)}
+        />
       </Card>
       <SectionTitle>Séances</SectionTitle>
       {[...series].reverse().map((p) => (
@@ -111,6 +131,63 @@ function ExercisesTab({ data }: { data: Data }) {
         </Row>
       ))}
     </>
+  );
+}
+
+/** Common hypertrophy guideline, shown as a shaded zone behind the bars. */
+const TARGET_MIN = 10;
+const TARGET_MAX = 20;
+
+function MusclesTab({ data }: { data: Data }) {
+  const theme = useTheme();
+  const { thisWeek } = data;
+  const [week, setWeek] = useState(thisWeek);
+  const rows = setsPerMuscle(data.muscleSets, MUSCLE_GROUPS, week);
+  const scale = Math.max(TARGET_MAX + 4, ...rows.map((r) => r.sets));
+  const pct = (n: number) => `${(n / scale) * 100}%` as const;
+
+  const changeWeek = (delta: -1 | 1) => {
+    const d = new Date(week);
+    d.setDate(d.getDate() + 7 * delta);
+    setWeek(weekStart(d.getTime()).getTime());
+  };
+
+  return (
+    <Card>
+      <Row style={styles.listRow}>
+        <Button label="‹" variant="ghost" small onPress={() => changeWeek(-1)} />
+        <ThemedText type="smallBold">
+          {week === thisWeek ? 'Cette semaine' : `Semaine du ${shortDate(week)}`}
+        </ThemedText>
+        <Button label="›" variant="ghost" small disabled={week >= thisWeek} onPress={() => changeWeek(1)} />
+      </Row>
+      <ThemedText type="small" themeColor="textSecondary">
+        Séries terminées par muscle. Zone grisée : {TARGET_MIN} à {TARGET_MAX} séries par semaine, le repère
+        courant pour progresser.
+      </ThemedText>
+      {rows.map((r) => (
+        <Row key={r.group} style={styles.barRow}>
+          <ThemedText type="small" style={styles.barLabel} numberOfLines={1}>
+            {r.group}
+          </ThemedText>
+          <View style={styles.barTrack}>
+            <View
+              style={[
+                styles.targetZone,
+                { left: pct(TARGET_MIN), width: pct(TARGET_MAX - TARGET_MIN), backgroundColor: theme.backgroundSelected },
+              ]}
+            />
+            {r.sets > 0 && <View style={[styles.bar, { width: pct(r.sets), backgroundColor: theme.chart }]} />}
+          </View>
+          <ThemedText
+            type="smallBold"
+            themeColor={r.sets > 0 ? 'text' : 'textSecondary'}
+            style={styles.barValue}>
+            {r.sets}
+          </ThemedText>
+        </Row>
+      ))}
+    </Card>
   );
 }
 
@@ -217,4 +294,11 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
   listRow: { justifyContent: 'space-between' },
+  barRow: { gap: 8 },
+  barLabel: { width: 80 },
+  barTrack: { flex: 1, height: 14, justifyContent: 'center' },
+  targetZone: { position: 'absolute', top: 0, bottom: 0, opacity: 0.6, borderRadius: 2 },
+  // Anchored to the left baseline, rounded only at the data end.
+  bar: { height: 14, borderTopRightRadius: 4, borderBottomRightRadius: 4 },
+  barValue: { width: 26, textAlign: 'right' },
 });

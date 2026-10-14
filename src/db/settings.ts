@@ -8,9 +8,22 @@ export type Settings = {
   restDefaultS: number;
   /** Gym days per week that keep the streak going. */
   weeklyGoal: number;
+  /** Sunday evening notification with the week's summary. */
+  weeklySummary: boolean;
+  /** Last automatic backup kept inside the app. */
+  lastSnapshotAt: number | null;
+  /** Last backup exported off the phone (share sheet). */
+  lastExportAt: number | null;
 };
 
-const DEFAULTS: Settings = { unit: 'lbs', restDefaultS: 90, weeklyGoal: 3 };
+const DEFAULTS: Settings = {
+  unit: 'lbs',
+  restDefaultS: 90,
+  weeklyGoal: 3,
+  weeklySummary: true,
+  lastSnapshotAt: null,
+  lastExportAt: null,
+};
 
 export async function getSettings(): Promise<Settings> {
   const db = await getDb();

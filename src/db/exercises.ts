@@ -16,6 +16,12 @@ export async function listExercises(): Promise<Exercise[]> {
   return rows.map(toExercise);
 }
 
+export async function getExercise(id: number): Promise<Exercise | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<Row>('SELECT * FROM exercises WHERE id = ?', id);
+  return row ? toExercise(row) : null;
+}
+
 /** Exercises that have at least one completed set, for the progress screen. */
 export async function listTrainedExercises(): Promise<Exercise[]> {
   const db = await getDb();

@@ -6,11 +6,13 @@ import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { snapshotIfDue } from '@/backup';
 import { Colors } from '@/constants/theme';
 import { getDb } from '@/db/client';
 import { syncGeofences } from '@/geofence/regions';
 import { endRestActivity } from '@/live-activity';
 import { handleNotificationResponse } from '@/notifications/responses';
+import { scheduleWeeklySummary } from '@/notifications/summary';
 import { refreshWidget } from '@/widget';
 
 // The app is always dark (app.json); headers and backgrounds use the logo's colors.
@@ -30,7 +32,8 @@ export default function RootLayout() {
   useEffect(() => {
     getDb()
       .then(async () => {
-        await Promise.all([syncGeofences(), refreshWidget()]);
+        await Promise.all([syncGeofences(), refreshWidget(), scheduleWeeklySummary()]);
+        await snapshotIfDue().catch((e) => console.warn('Automatic backup failed', e));
         // A rest timer does not survive a relaunch; neither should its Live Activity.
         await endRestActivity();
         // The app may have been launched by tapping a notification.
@@ -44,9 +47,12 @@ export default function RootLayout() {
     const notificationSub = Notifications.addNotificationResponseReceivedListener((response) => {
       handleNotificationResponse(response).catch((e) => console.error(e));
     });
-    // Whatever changed in the app (workout, check-in, split) reaches the widget when leaving it.
+    // Whatever changed in the app (workout, check-in, split) reaches the widget and
+    // Sunday's summary when leaving it.
     const appStateSub = AppState.addEventListener('change', (state) => {
-      if (state === 'background') refreshWidget();
+      if (state !== 'background') return;
+      refreshWidget();
+      scheduleWeeklySummary().catch((e) => console.warn('Weekly summary failed', e));
     });
     return () => {
       notificationSub.remove();
@@ -61,6 +67,7 @@ export default function RootLayout() {
         <Stack.Screen name="workout/[id]" options={{ title: 'Séance' }} />
         <Stack.Screen name="template/[id]" options={{ title: 'Modèle de séance' }} />
         <Stack.Screen name="gym/[id]" options={{ title: 'Salle' }} />
+        <Stack.Screen name="exercise/[id]" options={{ title: 'Exercice' }} />
       </Stack>
     </ThemeProvider>
   );

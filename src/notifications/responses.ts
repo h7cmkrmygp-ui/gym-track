@@ -20,7 +20,7 @@ export async function handleNotificationResponse(response: Notifications.Notific
     const active = await getActiveWorkout();
     const id = active?.id ?? (await startWorkout(data.templateId));
     router.push(`/workout/${id}`);
-  } else if (data?.url === '/') {
-    router.navigate('/');
+  } else if (data?.url === '/' || data?.url === '/progress') {
+    router.navigate(data.url);
   }
 }

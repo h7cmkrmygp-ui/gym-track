@@ -290,6 +290,46 @@ export async function allCompletedSets(): Promise<LoggedSet[]> {
   return db.getAllAsync<SetRow>(`SELECT ${SET_COLUMNS} FROM sets s WHERE s.completed_at IS NOT NULL`);
 }
 
+export type ExerciseSession = { workoutId: number; workoutName: string; startedAt: number; sets: PreviousSet[] };
+
+/** Every finished workout that included the exercise, newest first, with its completed sets. */
+export async function exerciseHistory(exerciseId: number): Promise<ExerciseSession[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{
+    workout_id: number;
+    name: string;
+    started_at: number;
+    weight_kg: number;
+    reps: number;
+  }>(
+    `SELECT w.id AS workout_id, w.name, w.started_at, s.weight_kg, s.reps
+     FROM sets s JOIN workouts w ON w.id = s.workout_id
+     WHERE s.exercise_id = ? AND s.completed_at IS NOT NULL AND w.ended_at IS NOT NULL
+     ORDER BY w.started_at DESC, s.position`,
+    exerciseId,
+  );
+  const sessions: ExerciseSession[] = [];
+  for (const r of rows) {
+    let session = sessions[sessions.length - 1];
+    if (session?.workoutId !== r.workout_id) {
+      session = { workoutId: r.workout_id, workoutName: r.name, startedAt: r.started_at, sets: [] };
+      sessions.push(session);
+    }
+    session.sets.push({ weightKg: r.weight_kg, reps: r.reps });
+  }
+  return sessions;
+}
+
+/** Completed sets with their muscle group, for the weekly volume. */
+export async function completedSetsWithMuscle(): Promise<{ muscleGroup: string; at: number }[]> {
+  const db = await getDb();
+  return db.getAllAsync(
+    `SELECT e.muscle_group AS muscleGroup, s.completed_at AS at
+     FROM sets s JOIN exercises e ON e.id = s.exercise_id
+     WHERE s.completed_at IS NOT NULL`,
+  );
+}
+
 /** Records set in workouts that started before this one, to spot new PRs during it. */
 export async function recordsBefore(workoutId: number): Promise<Map<number, ExerciseRecord>> {
   const db = await getDb();

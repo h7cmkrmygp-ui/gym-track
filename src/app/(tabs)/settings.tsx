@@ -1,21 +1,21 @@
 import * as DocumentPicker from 'expo-document-picker';
-import { File, Paths } from 'expo-file-system';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import * as Sharing from 'expo-sharing';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
+import { listSnapshots, restoreFromFile, shareBackup } from '@/backup';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
-import { exportBackup, importBackup } from '@/db/backup';
 import { listGyms } from '@/db/gyms';
 import { getSettings, setSetting } from '@/db/settings';
 import { createPplPreset, listTemplates, moveInRotation } from '@/db/templates';
 import { getGeofenceStatus, isExpoGo, requestAlwaysLocation, syncGeofences } from '@/geofence/regions';
 import { handleGeofenceEvent } from '@/geofence/task';
 import { useFocusData } from '@/hooks/use-focus-data';
-import { dayKey } from '@/logic/stats';
+import { useTheme } from '@/hooks/use-theme';
 import type { Unit } from '@/logic/units';
+import { relativeDay } from '@/logic/widget';
+import { scheduleWeeklySummary } from '@/notifications/summary';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -26,14 +26,15 @@ async function loadSettings() {
     listGyms(),
     getGeofenceStatus(),
   ]);
-  return { settings, templates, gyms, geofence };
+  return { settings, templates, gyms, geofence, snapshots: listSnapshots(), now: Date.now() };
 }
 
 export default function SettingsScreen() {
+  const theme = useTheme();
   const [data, reload] = useFocusData(loadSettings);
 
   if (!data) return <Screen title="Réglages">{null}</Screen>;
-  const { settings, templates, gyms, geofence } = data;
+  const { settings, templates, gyms, geofence, snapshots, now } = data;
   const rotation = templates.filter((t) => t.rotationOrder !== null);
   const others = templates.filter((t) => t.rotationOrder === null);
 
@@ -49,39 +50,38 @@ export default function SettingsScreen() {
   };
 
   const exportData = async () => {
-    const file = new File(Paths.cache, `gymtrack-${dayKey(Date.now())}.json`);
-    file.create({ overwrite: true });
-    file.write(JSON.stringify(await exportBackup()));
-    await Sharing.shareAsync(file.uri, { mimeType: 'application/json', UTI: 'public.json' });
+    await shareBackup();
+    reload();
   };
 
-  const importData = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
-    if (result.canceled) return;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await new File(result.assets[0].uri).text());
-    } catch {
-      Alert.alert('Fichier illisible', 'Choisis un fichier exporté depuis GymTrack.');
-      return;
-    }
-    Alert.alert('Remplacer toutes tes données ?', 'Les données actuelles seront remplacées par la sauvegarde.', [
+  const restore = (uri: string, label: string) =>
+    Alert.alert('Remplacer toutes tes données ?', `Elles seront remplacées par ${label}.`, [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Remplacer',
         style: 'destructive',
         onPress: async () => {
           try {
-            await importBackup(parsed);
+            await restoreFromFile(uri);
             await syncGeofences();
             reload();
             Alert.alert('Sauvegarde restaurée');
           } catch (e) {
-            Alert.alert('Import impossible', e instanceof Error ? e.message : String(e));
+            Alert.alert('Restauration impossible', e instanceof Error ? e.message : String(e));
           }
         },
       },
     ]);
+
+  const importData = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+    if (!result.canceled) restore(result.assets[0].uri, 'ce fichier');
+  };
+
+  const toggleSummary = async (on: boolean) => {
+    await setSetting('weeklySummary', on);
+    await scheduleWeeklySummary();
+    reload();
   };
 
   return (
@@ -226,17 +226,47 @@ export default function SettingsScreen() {
             onChange={(v) => change('weeklyGoal', v)}
           />
         </Row>
+        <Row style={styles.between}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="small">Bilan du dimanche</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Notification à 19 h avec tes séances, séries et records de la semaine.
+            </ThemedText>
+          </View>
+          <Switch value={settings.weeklySummary} onValueChange={toggleSummary} trackColor={{ true: theme.accent }} />
+        </Row>
       </Card>
 
       <SectionTitle>Sauvegarde</SectionTitle>
       <Card>
         <ThemedText type="small" themeColor="textSecondary">
-          Tes données sont seulement sur ce téléphone. Si l&apos;app est supprimée, elles le sont aussi : exporte
-          une sauvegarde de temps en temps (vers Fichiers ou iCloud Drive).
+          Tes données sont seulement sur ce téléphone : si l&apos;app est supprimée, elles le sont aussi. Exporte une
+          sauvegarde vers iCloud Drive ou OneDrive pour la mettre à l&apos;abri.
         </ThemedText>
-        <Button label="Exporter mes données" variant="secondary" onPress={exportData} />
+        <ThemedText type="smallBold">
+          Dernier export :{' '}
+          {settings.lastExportAt ? relativeDay(settings.lastExportAt, now) : 'jamais'}
+        </ThemedText>
+        <Button label="Exporter mes données" onPress={exportData} />
         <Button label="Importer une sauvegarde" variant="ghost" onPress={importData} />
       </Card>
+
+      {snapshots.length > 0 && (
+        <>
+          <SectionTitle>Sauvegardes automatiques</SectionTitle>
+          <Card>
+            <ThemedText type="small" themeColor="textSecondary">
+              Une copie chaque semaine dans l&apos;app (les 8 dernières), pour revenir en arrière après une erreur.
+            </ThemedText>
+            {snapshots.map((s) => (
+              <Row key={s.name} style={styles.between}>
+                <ThemedText type="small">{s.date}</ThemedText>
+                <Button label="Restaurer" variant="ghost" small onPress={() => restore(s.uri, `la sauvegarde du ${s.date}`)} />
+              </Row>
+            ))}
+          </Card>
+        </>
+      )}
     </Screen>
   );
 }

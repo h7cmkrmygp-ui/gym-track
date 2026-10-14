@@ -208,14 +208,14 @@ function ExerciseCard({
   return (
     <Card>
       <Row style={styles.exerciseHeader}>
-        <View style={{ flex: 1 }}>
+        <Pressable style={{ flex: 1 }} onPress={() => router.push(`/exercise/${exercise.exerciseId}`)} hitSlop={6}>
           <ThemedText type="default" style={{ fontWeight: 700 }}>
-            {exercise.name}
+            {exercise.name} <ThemedText type="small" themeColor="textSecondary">›</ThemedText>
           </ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             {details.join(' · ')}
           </ThemedText>
-        </View>
+        </Pressable>
         <Button label="↑" variant="ghost" small disabled={isFirst} onPress={() => move(-1)} />
         <Button label="↓" variant="ghost" small disabled={isLast} onPress={() => move(1)} />
         <Button label="✕" variant="danger" small onPress={remove} />

@@ -8,6 +8,7 @@ import { listTemplates } from '@/db/templates';
 import { lastRotationTemplateId } from '@/db/workouts';
 import { nextInRotation } from '@/logic/rotation';
 import { notifyArrival } from '@/notifications';
+import { scheduleWeeklySummary } from '@/notifications/summary';
 import { refreshWidget } from '@/widget';
 
 export const GEOFENCE_TASK = 'gym-geofence';
@@ -29,6 +30,7 @@ export async function handleGeofenceEvent(gymId: number, eventType: Location.Geo
     await recordExit(gymId, now);
     // Leaving closes the visit, which is when it starts counting as a gym day.
     await refreshWidget();
+    await scheduleWeeklySummary().catch(() => {});
     return;
   }
   const started = await recordEnter(gymId, now);
