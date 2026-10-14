@@ -15,9 +15,21 @@ export async function addGym(name: string, lat: number, lng: number, radiusM = 1
   return res.lastInsertRowId;
 }
 
-export async function updateGymRadius(id: number, radiusM: number) {
+export async function getGym(id: number): Promise<Gym | null> {
   const db = await getDb();
-  await db.runAsync('UPDATE gyms SET radius_m = ? WHERE id = ?', radiusM, id);
+  return db.getFirstAsync<Gym>('SELECT id, name, lat, lng, radius_m AS radiusM FROM gyms WHERE id = ?', id);
+}
+
+export async function updateGym(id: number, name: string, lat: number, lng: number, radiusM: number) {
+  const db = await getDb();
+  await db.runAsync(
+    'UPDATE gyms SET name = ?, lat = ?, lng = ?, radius_m = ? WHERE id = ?',
+    name,
+    lat,
+    lng,
+    radiusM,
+    id,
+  );
 }
 
 export async function deleteGym(id: number) {

@@ -36,6 +36,6 @@ npx expo lint
 3. Installe-la :
    - sur l'iPhone : AltStore → My Apps → **+** → choisis `GymTrack.ipa` ;
    - ou sur le PC : AltServer → Shift + clic → Sideload .ipa.
-4. Ouvre GymTrack, puis Réglages → **Activer la détection** → choisis « Toujours ». Ensuite, quand tu es à la salle, utilise **Ajouter ma position actuelle**.
+4. Ouvre GymTrack, puis Réglages → **Activer la détection** → choisis « Toujours ». Ensuite, **Ajouter une salle** : cherche-la par adresse ou par nom, ajuste l'épingle et le cercle sur la carte.
 
 Avec un Apple ID gratuit, l'app expire au bout de 7 jours. AltServer la renouvelle automatiquement quand le PC et l'iPhone sont sur le même Wi-Fi. Tes données sont gardées tant que l'app n'est pas supprimée.

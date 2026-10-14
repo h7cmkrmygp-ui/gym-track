@@ -3,21 +3,19 @@ import { File, Paths } from 'expo-file-system';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Input, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
+import { Button, Card, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
 import { exportBackup, importBackup } from '@/db/backup';
-import { addGym, deleteGym, listGyms, updateGymRadius } from '@/db/gyms';
+import { listGyms } from '@/db/gyms';
 import { getSettings, setSetting } from '@/db/settings';
 import { createPplPreset, listTemplates, moveInRotation } from '@/db/templates';
-import { getCurrentCoords, getGeofenceStatus, isExpoGo, requestAlwaysLocation, syncGeofences } from '@/geofence/regions';
+import { getGeofenceStatus, isExpoGo, requestAlwaysLocation, syncGeofences } from '@/geofence/regions';
 import { handleGeofenceEvent } from '@/geofence/task';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { dayKey } from '@/logic/stats';
 import type { Unit } from '@/logic/units';
-import { ensureNotificationPermission } from '@/notifications';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -33,8 +31,6 @@ async function loadSettings() {
 
 export default function SettingsScreen() {
   const [data, reload] = useFocusData(loadSettings);
-  const [gymName, setGymName] = useState('');
-  const [adding, setAdding] = useState(false);
 
   if (!data) return <Screen title="Réglages">{null}</Screen>;
   const { settings, templates, gyms, geofence } = data;
@@ -44,26 +40,6 @@ export default function SettingsScreen() {
   const change = async <K extends keyof typeof settings>(key: K, value: (typeof settings)[K]) => {
     await setSetting(key, value);
     reload();
-  };
-
-  const addCurrentPlace = async () => {
-    setAdding(true);
-    try {
-      const coords = await getCurrentCoords();
-      if (typeof coords === 'string') {
-        Alert.alert('Localisation', coords);
-        return;
-      }
-      await addGym(gymName.trim() || 'Ma salle', coords.lat, coords.lng);
-      setGymName('');
-      await ensureNotificationPermission();
-      await syncGeofences();
-      reload();
-    } catch (e) {
-      Alert.alert('Position introuvable', String(e));
-    } finally {
-      setAdding(false);
-    }
   };
 
   const enableDetection = async () => {
@@ -178,7 +154,7 @@ export default function SettingsScreen() {
                 'ℹ️ Dans Expo Go, la détection automatique est désactivée. Elle marche dans la version installée avec AltStore.',
               'needs-permission':
                 'La détection a besoin de ta localisation « Toujours » pour noter tes jours de gym même quand l’app est fermée.',
-              'no-gyms': '✅ Localisation autorisée. Ajoute ta salle quand tu es dedans.',
+              'no-gyms': '✅ Localisation autorisée. Ajoute ta salle ci-dessous.',
               active: `✅ Détection active pour ${gyms.length} ${gyms.length > 1 ? 'salles' : 'salle'}.`,
             }[geofence]
           }
@@ -187,43 +163,14 @@ export default function SettingsScreen() {
 
         {gyms.map((g) => (
           <View key={g.id} style={styles.gym}>
-            <Row style={styles.between}>
-              <ThemedText style={{ fontWeight: 700, flex: 1 }}>📍 {g.name}</ThemedText>
-              <Button
-                label="Supprimer"
-                variant="danger"
-                small
-                onPress={() =>
-                  Alert.alert(`Supprimer ${g.name} ?`, 'Tes jours de gym déjà notés restent.', [
-                    { text: 'Annuler', style: 'cancel' },
-                    {
-                      text: 'Supprimer',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await deleteGym(g.id);
-                        await syncGeofences();
-                        reload();
-                      },
-                    },
-                  ])
-                }
-              />
-            </Row>
-            <Row style={styles.between}>
-              <ThemedText type="small">Rayon</ThemedText>
-              <Stepper
-                value={g.radiusM}
-                min={50}
-                max={300}
-                step={25}
-                format={(v) => `${v} m`}
-                onChange={async (v) => {
-                  await updateGymRadius(g.id, v);
-                  await syncGeofences();
-                  reload();
-                }}
-              />
-            </Row>
+            <Pressable onPress={() => router.push(`/gym/${g.id}`)}>
+              <Row style={styles.between}>
+                <ThemedText style={{ fontWeight: 700, flex: 1 }}>📍 {g.name}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {g.radiusM} m ›
+                </ThemedText>
+              </Row>
+            </Pressable>
             {isExpoGo && (
               <Row>
                 <Button
@@ -243,16 +190,7 @@ export default function SettingsScreen() {
           </View>
         ))}
 
-        <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: 8 }}>
-          Ajouter une salle (sois dedans ou juste devant)
-        </ThemedText>
-        <Input placeholder="Nom (ex. Énergie Cardio)" value={gymName} onChangeText={setGymName} />
-        <Button
-          label={adding ? 'Localisation…' : 'Ajouter ma position actuelle'}
-          variant="secondary"
-          disabled={adding}
-          onPress={addCurrentPlace}
-        />
+        <Button label="+ Ajouter une salle" variant="secondary" onPress={() => router.push('/gym/new')} />
       </Card>
 
       <SectionTitle>Unités</SectionTitle>
