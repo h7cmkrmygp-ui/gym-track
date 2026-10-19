@@ -26,6 +26,13 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Some images (e.g. the Intel ones) default to an older Xcode; the app needs Xcode 26+.
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
       - run: npm ci
 
       - name: Generate native iOS project
