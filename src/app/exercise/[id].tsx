@@ -1,14 +1,16 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { LineChart } from '@/components/line-chart';
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Card, Row, Screen, SectionTitle, Segmented } from '@/components/ui';
 import { getExercise } from '@/db/exercises';
 import { getSettings } from '@/db/settings';
 import { exerciseHistory } from '@/db/workouts';
 import { useFocusData } from '@/hooks/use-focus-data';
+import { useTheme } from '@/hooks/use-theme';
 import { isPlateau } from '@/logic/plateau';
 import { computeRecords, progressSeries, type LoggedSet } from '@/logic/records';
 import { formatWeight, toDisplay } from '@/logic/units';
@@ -35,6 +37,7 @@ async function loadExercise(exerciseId: number) {
 
 /** One exercise's past: records, curve and every session, reachable mid-workout. */
 export default function ExerciseScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data] = useFocusData(loadExercise, Number(id));
   const [metric, setMetric] = useState<'e1rm' | 'max'>('e1rm');
@@ -47,36 +50,57 @@ export default function ExerciseScreen() {
       <Stack.Screen options={{ title: exercise?.name ?? 'Exercice' }} />
       <Screen>
         {sessions.length === 0 ? (
-          <ThemedText themeColor="textSecondary">Pas encore de séance terminée avec cet exercice.</ThemedText>
+          <Card index={0} style={styles.empty}>
+            <Icon name="chart.line.uptrend.xyaxis" size={26} />
+            <ThemedText type="small" themeColor="textSecondary">
+              Pas encore de séance terminée avec cet exercice.
+            </ThemedText>
+          </Card>
         ) : (
           <>
-            {isPlateau(series) && (
-              <Card>
-                <ThemedText type="small">
-                  ⚠️ Pas de progrès depuis 3 séances. Un deload (−10 % pendant une séance) aide souvent à repartir :
-                  l&apos;app te le proposera à ta prochaine séance.
-                </ThemedText>
+            {record && (
+              <Card glow index={0}>
+                <Row style={styles.recordRow}>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="caps">Charge max</ThemedText>
+                    <ThemedText type="subtitle">{formatWeight(record.maxWeight.value, unit)}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {shortDate(record.maxWeight.at)}
+                    </ThemedText>
+                  </View>
+                  <View style={[styles.vDivider, { backgroundColor: theme.hairline }]} />
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="caps">1RM estimé</ThemedText>
+                    <ThemedText type="subtitle">{formatWeight(record.bestE1rm.value, unit)}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {shortDate(record.bestE1rm.at)}
+                    </ThemedText>
+                  </View>
+                </Row>
               </Card>
             )}
-            {record && (
-              <Card>
-                <Row style={styles.between}>
-                  <ThemedText type="small">🏋️ Charge max</ThemedText>
-                  <ThemedText type="smallBold">
-                    {formatWeight(record.maxWeight.value, unit)} · {shortDate(record.maxWeight.at)}
-                  </ThemedText>
-                </Row>
-                <Row style={styles.between}>
-                  <ThemedText type="small">📈 1RM estimé</ThemedText>
-                  <ThemedText type="smallBold">
-                    {formatWeight(record.bestE1rm.value, unit)} · {shortDate(record.bestE1rm.at)}
+
+            {isPlateau(series) && (
+              <Card index={1}>
+                <Row style={{ alignItems: 'flex-start' }}>
+                  <Icon name="exclamationmark.triangle.fill" size={15} />
+                  <ThemedText type="small" style={{ flex: 1 }}>
+                    Pas de progrès depuis 3 séances. Un deload (−10 % pendant une séance) aide souvent à repartir :
+                    l&apos;app te le proposera à ta prochaine séance.
                   </ThemedText>
                 </Row>
               </Card>
             )}
 
             {series.length >= 2 && (
-              <Card>
+              <Card index={2} key={metric}>
+                <LineChart
+                  points={series.map((p) => ({
+                    x: p.at,
+                    y: toDisplay(metric === 'e1rm' ? p.bestE1rm : p.maxWeight, unit),
+                  }))}
+                  format={(y) => `${y} ${unit}`}
+                />
                 <Segmented
                   value={metric}
                   onChange={setMetric}
@@ -85,28 +109,27 @@ export default function ExerciseScreen() {
                     { value: 'max', label: 'Charge max' },
                   ]}
                 />
-                <LineChart
-                  points={series.map((p) => ({
-                    x: p.at,
-                    y: toDisplay(metric === 'e1rm' ? p.bestE1rm : p.maxWeight, unit),
-                  }))}
-                  format={(y) => `${y} ${unit}`}
-                />
               </Card>
             )}
 
             <SectionTitle>Dernières séances</SectionTitle>
-            {sessions.slice(0, 20).map((s) => (
-              <Card key={s.workoutId}>
+            {sessions.slice(0, 20).map((s, i) => (
+              <Card key={s.workoutId} index={Math.min(i + 3, 8)}>
                 <Row style={styles.between}>
                   <ThemedText type="smallBold">{s.workoutName}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
+                  <ThemedText type="caps" themeColor="textSecondary">
                     {shortDate(s.startedAt)}
                   </ThemedText>
                 </Row>
-                <ThemedText>
-                  {s.sets.map((set) => `${toDisplay(set.weightKg, unit)}×${set.reps}`).join('   ')}
-                </ThemedText>
+                <View style={styles.sets}>
+                  {s.sets.map((set, j) => (
+                    <View key={j} style={[styles.setPill, { borderColor: theme.hairline }]}>
+                      <ThemedText type="small" style={{ fontVariant: ['tabular-nums'] }}>
+                        {toDisplay(set.weightKg, unit)} × {set.reps}
+                      </ThemedText>
+                    </View>
+                  ))}
+                </View>
               </Card>
             ))}
           </>
@@ -118,4 +141,9 @@ export default function ExerciseScreen() {
 
 const styles = StyleSheet.create({
   between: { justifyContent: 'space-between' },
+  empty: { alignItems: 'center', paddingVertical: 28, gap: 10 },
+  recordRow: { gap: 16 },
+  vDivider: { width: 1, alignSelf: 'stretch' },
+  sets: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  setPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
 });

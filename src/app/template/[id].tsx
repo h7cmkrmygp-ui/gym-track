@@ -1,10 +1,12 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Switch, View } from 'react-native';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 
 import { ExercisePicker } from '@/components/exercise-picker';
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Input, Row, Screen, SectionTitle, Stepper } from '@/components/ui';
+import { Button, Card, IconButton, Input, Row, Screen, SectionTitle, Stepper } from '@/components/ui';
 import { getSettings } from '@/db/settings';
 import { archiveTemplate, getTemplate, saveTemplate, type TemplateExercise } from '@/db/templates';
 import { getActiveWorkout, startWorkout } from '@/db/workouts';
@@ -97,6 +99,7 @@ export default function TemplateScreen() {
     <>
       <Stack.Screen options={{ title }} />
       <Screen>
+        <ThemedText type="caps">Nom</ThemedText>
         <Input
           placeholder={planning ? 'Nom (optionnel, ex. Bras)' : 'Nom (ex. Push)'}
           value={name}
@@ -105,59 +108,70 @@ export default function TemplateScreen() {
 
         <SectionTitle>Exercices</SectionTitle>
         {exercises.length === 0 && (
-          <ThemedText themeColor="textSecondary">
-            Ajoute tes exercices, puis règle les séries, les reps et le repos de chacun.
-          </ThemedText>
+          <Card index={0} style={styles.empty}>
+            <Icon name="list.bullet.rectangle" size={26} />
+            <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+              Ajoute tes exercices, puis règle les séries, les reps et le repos de chacun.
+            </ThemedText>
+          </Card>
         )}
         {exercises.map((ex, i) => (
-          <Card key={`${ex.exerciseId}-${i}`}>
-            <Row>
-              <ThemedText style={{ flex: 1, fontWeight: 700 }}>
-                {i + 1}. {ex.name}
-              </ThemedText>
-              <Button label="↑" variant="ghost" small disabled={i === 0} onPress={() => setExercises((l) => moveItem(l, i, -1))} />
-              <Button
-                label="↓"
-                variant="ghost"
-                small
-                disabled={i === exercises.length - 1}
-                onPress={() => setExercises((l) => moveItem(l, i, 1))}
-              />
-              <Button
-                label="✕"
-                variant="danger"
-                small
-                onPress={() => setExercises((list) => list.filter((_, j) => j !== i))}
-              />
-            </Row>
-            <Row style={styles.field}>
-              <ThemedText type="small" style={styles.label}>
-                Séries
-              </ThemedText>
-              <Stepper value={ex.targetSets} min={1} max={10} onChange={(v) => update(i, { targetSets: v })} />
-            </Row>
-            <Row style={styles.field}>
-              <ThemedText type="small" style={styles.label}>
-                Reps
-              </ThemedText>
-              <Stepper value={ex.targetReps} min={1} max={50} onChange={(v) => update(i, { targetReps: v })} />
-            </Row>
-            <Row style={styles.field}>
-              <ThemedText type="small" style={styles.label}>
-                Repos
-              </ThemedText>
-              <Stepper
-                value={ex.restS}
-                min={0}
-                max={600}
-                step={15}
-                format={mmss}
-                onChange={(v) => update(i, { restS: v })}
-              />
-            </Row>
-          </Card>
+          <Animated.View key={`${ex.exerciseId}-${i}`} layout={LinearTransition.springify().damping(20)}>
+            <Card index={Math.min(i, 6)}>
+              <Row style={{ gap: 10 }}>
+                <View style={[styles.badge, { borderColor: theme.hairline }]}>
+                  <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                    {i + 1}
+                  </ThemedText>
+                </View>
+                <ThemedText style={{ flex: 1, fontWeight: 700 }} numberOfLines={1}>
+                  {ex.name}
+                </ThemedText>
+                <IconButton
+                  icon="chevron.up"
+                  disabled={i === 0}
+                  onPress={() => setExercises((l) => moveItem(l, i, -1))}
+                />
+                <IconButton
+                  icon="chevron.down"
+                  disabled={i === exercises.length - 1}
+                  onPress={() => setExercises((l) => moveItem(l, i, 1))}
+                />
+                <IconButton
+                  icon="xmark"
+                  color={theme.danger}
+                  onPress={() => setExercises((list) => list.filter((_, j) => j !== i))}
+                />
+              </Row>
+              <Row style={styles.field}>
+                <ThemedText type="small" style={styles.label}>
+                  Séries
+                </ThemedText>
+                <Stepper value={ex.targetSets} min={1} max={10} onChange={(v) => update(i, { targetSets: v })} />
+              </Row>
+              <Row style={styles.field}>
+                <ThemedText type="small" style={styles.label}>
+                  Reps
+                </ThemedText>
+                <Stepper value={ex.targetReps} min={1} max={50} onChange={(v) => update(i, { targetReps: v })} />
+              </Row>
+              <Row style={styles.field}>
+                <ThemedText type="small" style={styles.label}>
+                  Repos
+                </ThemedText>
+                <Stepper
+                  value={ex.restS}
+                  min={0}
+                  max={600}
+                  step={15}
+                  format={mmss}
+                  onChange={(v) => update(i, { restS: v })}
+                />
+              </Row>
+            </Card>
+          </Animated.View>
         ))}
-        <Button label="＋ Ajouter des exercices" variant="secondary" onPress={() => setPicking(true)} />
+        <Button label="Ajouter des exercices" icon="plus" variant="secondary" onPress={() => setPicking(true)} />
 
         <Card>
           {planning && (
@@ -185,12 +199,13 @@ export default function TemplateScreen() {
         </Card>
 
         {planning ? (
-          <Button label="Commencer la séance" onPress={saveAndStart} />
+          <Button label="Commencer la séance" icon="play.fill" onPress={saveAndStart} />
         ) : (
           <>
-            <Button label="Enregistrer" onPress={save} />
+            <Button label="Enregistrer" icon="checkmark" onPress={save} />
             <Button
               label={templateId === null ? 'Enregistrer et commencer' : 'Commencer cette séance'}
+              icon="play.fill"
               variant="secondary"
               onPress={saveAndStart}
             />
@@ -205,7 +220,13 @@ export default function TemplateScreen() {
           setPicking(false);
           setExercises((list) => [
             ...list,
-            ...picked.map((ex) => ({ exerciseId: ex.id, name: ex.name, targetSets: 3, targetReps: 10, restS: restDefault })),
+            ...picked.map((ex) => ({
+              exerciseId: ex.id,
+              name: ex.name,
+              targetSets: 3,
+              targetReps: 10,
+              restS: restDefault,
+            })),
           ]);
         }}
       />
@@ -215,5 +236,7 @@ export default function TemplateScreen() {
 
 const styles = StyleSheet.create({
   field: { justifyContent: 'space-between' },
+  empty: { alignItems: 'center', paddingVertical: 24, gap: 10 },
+  badge: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   label: { flex: 1 },
 });

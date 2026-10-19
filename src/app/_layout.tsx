@@ -1,13 +1,18 @@
 // Must stay the first import: defines the geofence task in the global scope.
 import '@/geofence/task';
 
+// Only the two weights in use, so the other font files stay out of the app.
+import { CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-garamond/600SemiBold';
+import { CormorantGaramond_700Bold } from '@expo-google-fonts/cormorant-garamond/700Bold';
+import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
 import { snapshotIfDue } from '@/backup';
-import { Colors } from '@/constants/theme';
+import { Colors, DisplayFont } from '@/constants/theme';
 import { getDb } from '@/db/client';
 import { getSettings, setSetting } from '@/db/settings';
 import { getActiveWorkout } from '@/db/workouts';
@@ -35,7 +40,17 @@ export { ErrorScreen as ErrorBoundary } from '@/components/error-screen';
 /** A launch counts as successful once the app has stayed open this long. */
 const LAUNCH_OK_AFTER_MS = 10_000;
 
+// The splash stays up until the display font is ready, then fades into the app.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.setOptions({ fade: true, duration: 450 });
+
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({ CormorantGaramond_600SemiBold, CormorantGaramond_700Bold });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded, fontError]);
+
   useEffect(() => {
     getDb()
       .then(async () => {
@@ -77,7 +92,15 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={navigationTheme}>
-      <Stack screenOptions={{ headerBackTitle: 'Retour' }}>
+      <Stack
+        screenOptions={{
+          headerBackTitle: 'Retour',
+          headerTintColor: Colors.dark.accent,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: Colors.dark.background },
+          headerTitleStyle: { fontFamily: DisplayFont.semibold, fontSize: 22, color: Colors.dark.text },
+          contentStyle: { backgroundColor: Colors.dark.background },
+        }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="workout/[id]" options={{ title: 'Séance' }} />
         <Stack.Screen name="template/[id]" options={{ title: 'Modèle de séance' }} />

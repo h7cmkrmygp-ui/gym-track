@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, type LatLng } from 'react-native-maps';
 
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Input, Row, Stepper } from '@/components/ui';
 import { BottomTabInset, Spacing } from '@/constants/theme';
@@ -134,7 +135,7 @@ export default function GymScreen() {
             returnKeyType="search"
             autoCorrect={false}
           />
-          <Button label="Chercher" small onPress={search} disabled={searching} />
+          <Button label="Chercher" icon="magnifyingglass" small onPress={search} disabled={searching} />
         </Row>
         {searching && <ActivityIndicator />}
         {results && (
@@ -190,7 +191,10 @@ export default function GymScreen() {
           onPress={goToMe}
           style={[styles.meButton, { backgroundColor: theme.backgroundElement }]}
           hitSlop={8}>
-          <ThemedText type="smallBold">📍 Ma position</ThemedText>
+          <Row style={{ gap: 6 }}>
+            <Icon name="location.fill" size={13} />
+            <ThemedText type="smallBold">Ma position</ThemedText>
+          </Row>
         </Pressable>
       </View>
 
@@ -199,14 +203,17 @@ export default function GymScreen() {
           Touche la carte ou fais glisser l’épingle pour la mettre pile sur ta salle.
         </ThemedText>
         <Card>
-          <ThemedText type="smallBold">Emplacement choisi</ThemedText>
-          <ThemedText>{pin ? (address ?? 'Recherche de l’adresse…') : 'Aucun emplacement'}</ThemedText>
+          <ThemedText type="caps">Emplacement choisi</ThemedText>
+          <Row>
+            <Icon name="mappin.and.ellipse" size={18} />
+            <ThemedText style={{ flex: 1 }}>{pin ? (address ?? 'Recherche de l’adresse…') : 'Aucun emplacement'}</ThemedText>
+          </Row>
         </Card>
         <Input placeholder="Nom (ex. Énergie Cardio)" value={name} onChangeText={setName} />
         <Card>
           <Row style={styles.between}>
             <View style={{ flex: 1 }}>
-              <ThemedText type="small">Zone de détection</ThemedText>
+              <ThemedText type="smallBold">Zone de détection</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 Le cercle doit couvrir la salle et le stationnement.
               </ThemedText>
@@ -214,7 +221,7 @@ export default function GymScreen() {
             <Stepper value={radius} min={50} max={300} step={25} format={(v) => `${v} m`} onChange={setRadius} />
           </Row>
         </Card>
-        <Button label="Enregistrer la salle" onPress={save} />
+        <Button label="Enregistrer la salle" icon="checkmark" onPress={save} />
         {gymId !== null && <Button label="Supprimer cette salle" variant="danger" onPress={remove} />}
       </ScrollView>
     </View>
@@ -227,7 +234,16 @@ const styles = StyleSheet.create({
   results: { gap: 0, paddingVertical: Spacing.one },
   result: { paddingVertical: Spacing.two },
   mapWrap: { height: 300 },
-  meButton: { position: 'absolute', right: 12, bottom: 12, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
+  meButton: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(227, 211, 181, 0.2)',
+  },
   form: { padding: Spacing.three, gap: Spacing.three, paddingBottom: BottomTabInset + Spacing.six },
   between: { justifyContent: 'space-between' },
 });

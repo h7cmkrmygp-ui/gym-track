@@ -1,9 +1,15 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Backdrop } from '@/components/backdrop';
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Input, Row } from '@/components/ui';
+import { Button, Chip, IconButton, Input, Row } from '@/components/ui';
+import { Gold } from '@/constants/theme';
+import { selectHaptic } from '@/haptics';
 import { MUSCLE_GROUPS } from '@/data/exercises.fr';
 import { createExercise, listExercises, type Exercise } from '@/db/exercises';
 import { useTheme } from '@/hooks/use-theme';
@@ -51,10 +57,12 @@ export function ExercisePicker({
     reset();
     onPick(picked);
   };
-  const toggle = (exercise: Exercise) =>
+  const toggle = (exercise: Exercise) => {
+    selectHaptic();
     setSelected((list) =>
       list.some((e) => e.id === exercise.id) ? list.filter((e) => e.id !== exercise.id) : [...list, exercise],
     );
+  };
 
   const create = async () => {
     if (!form?.name.trim() || !form.group) return;
@@ -77,47 +85,53 @@ export function ExercisePicker({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <View style={[styles.sheet, { backgroundColor: theme.background, paddingBottom: insets.bottom + 8 }]}>
+        <Backdrop />
         <Row style={styles.header}>
-          <ThemedText type="default" style={{ fontWeight: 700, flex: 1 }}>
-            Ajouter des exercices
+          <ThemedText type="subtitle" style={{ flex: 1 }}>
+            Exercices
           </ThemedText>
-          <Button label="Fermer" variant="ghost" small onPress={close} />
+          <IconButton icon="xmark" onPress={close} />
         </Row>
 
         {form ? (
-          <View style={[styles.form, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText type="smallBold">Nouvel exercice</ThemedText>
+          <Animated.View
+            entering={FadeInDown.duration(250)}
+            style={[styles.form, { backgroundColor: theme.backgroundElement, borderColor: theme.hairline }]}>
+            <ThemedText type="caps">Nouvel exercice</ThemedText>
             <Input
               placeholder="Nom (ex. Développé machine)"
               value={form.name}
               onChangeText={(name) => setForm({ ...form, name })}
               autoFocus
             />
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="caps" themeColor="textSecondary">
               Muscle travaillé
             </ThemedText>
             <View style={styles.chips}>
               {MUSCLE_GROUPS.map((g) => (
-                <Pressable
-                  key={g}
-                  onPress={() => setForm({ ...form, group: g })}
-                  style={[styles.chip, { backgroundColor: g === form.group ? theme.accent : theme.backgroundSelected }]}>
-                  <ThemedText type="small" style={g === form.group ? { color: theme.onAccent } : undefined}>
-                    {g}
-                  </ThemedText>
-                </Pressable>
+                <Chip key={g} label={g} selected={g === form.group} onPress={() => setForm({ ...form, group: g })} />
               ))}
             </View>
             <Row>
               <Button label="Annuler" variant="secondary" small onPress={() => setForm(null)} />
-              <Button label="Créer" small disabled={!form.name.trim() || !form.group} onPress={create} />
+              <Button label="Créer" icon="plus" small disabled={!form.name.trim() || !form.group} onPress={create} />
             </Row>
-          </View>
+          </Animated.View>
         ) : (
           <>
-            <Input placeholder="Rechercher…" value={query} onChangeText={setQuery} autoCorrect={false} />
+            <View>
+              <Input
+                placeholder="Rechercher"
+                value={query}
+                onChangeText={setQuery}
+                autoCorrect={false}
+                style={styles.search}
+              />
+              <Icon name="magnifyingglass" size={14} color={theme.textSecondary} style={styles.searchIcon} />
+            </View>
             <Button
-              label={q && !exactMatch ? `＋ Créer « ${query.trim()} »` : '＋ Nouvel exercice'}
+              icon="plus"
+              label={q && !exactMatch ? `Créer « ${query.trim()} »` : 'Nouvel exercice'}
               variant="secondary"
               small
               onPress={() => setForm({ name: q && !exactMatch ? query.trim() : '', group: null })}
@@ -132,7 +146,7 @@ export function ExercisePicker({
           keyboardDismissMode="on-drag"
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }) => (
-            <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
+            <ThemedText type="caps" style={styles.sectionHeader}>
               {section.title}
             </ThemedText>
           )}
@@ -141,22 +155,17 @@ export function ExercisePicker({
             return (
               <Pressable
                 onPress={() => toggle(item)}
-                style={({ pressed }) => [
-                  styles.item,
-                  { borderColor: theme.backgroundSelected, opacity: pressed ? 0.6 : 1 },
-                ]}>
-                <ThemedText style={{ flex: 1 }}>{item.name}</ThemedText>
-                <View
-                  style={[
-                    styles.tick,
-                    rank >= 0
-                      ? { backgroundColor: theme.accent, borderColor: theme.accent }
-                      : { borderColor: theme.backgroundSelected },
-                  ]}>
+                style={({ pressed }) => [styles.item, { borderColor: theme.hairline, opacity: pressed ? 0.6 : 1 }]}>
+                <ThemedText style={{ flex: 1, color: rank >= 0 ? theme.accent : theme.text }}>{item.name}</ThemedText>
+                <View style={[styles.tick, { borderColor: rank >= 0 ? 'transparent' : theme.hairline }]}>
                   {rank >= 0 && (
-                    <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
-                      {rank + 1}
-                    </ThemedText>
+                    <Animated.View entering={ZoomIn.springify().damping(12)} style={StyleSheet.absoluteFill}>
+                      <LinearGradient colors={Gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tickFill}>
+                        <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+                          {rank + 1}
+                        </ThemedText>
+                      </LinearGradient>
+                    </Animated.View>
                   )}
                 </View>
               </Pressable>
@@ -165,10 +174,13 @@ export function ExercisePicker({
         />
 
         {selected.length > 0 && (
-          <Button
-            label={`Ajouter ${selected.length > 1 ? `les ${selected.length} exercices` : 'l’exercice'}`}
-            onPress={confirm}
-          />
+          <Animated.View entering={FadeInDown.springify().damping(18)}>
+            <Button
+              icon="checkmark"
+              label={`Ajouter ${selected.length > 1 ? `les ${selected.length} exercices` : 'l’exercice'}`}
+              onPress={confirm}
+            />
+          </Animated.View>
         )}
       </View>
     </Modal>
@@ -176,12 +188,14 @@ export function ExercisePicker({
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1, padding: 16, gap: 12 },
+  sheet: { flex: 1, padding: 18, gap: 12 },
   header: { justifyContent: 'space-between' },
-  form: { borderRadius: 12, padding: 12, gap: 10 },
+  form: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderRadius: 14, paddingHorizontal: 10, paddingVertical: 4 },
-  sectionHeader: { textTransform: 'uppercase', marginTop: 16, marginBottom: 4 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  tick: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  sectionHeader: { marginTop: 18, marginBottom: 6 },
+  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1 },
+  tick: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tickFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  search: { paddingLeft: 36 },
+  searchIcon: { position: 'absolute', left: 13, top: 14 },
 });

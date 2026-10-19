@@ -1,16 +1,19 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
+import type { ReactNode } from 'react';
 import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { listSnapshots, restoreFromFile, shareBackup } from '@/backup';
+import { Icon, type SFSymbol } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
+import { Button, Card, IconButton, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
 import { listGyms } from '@/db/gyms';
 import { getSettings, setSetting } from '@/db/settings';
 import { createPplPreset, listTemplates, moveInRotation } from '@/db/templates';
 import { getGeofenceStatus, isExpoGo, requestAlwaysLocation, syncGeofences } from '@/geofence/regions';
 import { handleGeofenceEvent } from '@/geofence/task';
+import { tapHaptic } from '@/haptics';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import type { Unit } from '@/logic/units';
@@ -84,95 +87,101 @@ export default function SettingsScreen() {
     reload();
   };
 
+  const geofenceText = {
+    'expo-go': 'Dans Expo Go, la détection est désactivée. Elle marche dans la version AltStore.',
+    'needs-permission': 'Autorise la localisation « Toujours » pour noter tes jours de gym, même app fermée.',
+    'no-gyms': 'Localisation autorisée. Ajoute ta salle ci-dessous.',
+    active: `Détection active pour ${gyms.length} ${gyms.length > 1 ? 'salles' : 'salle'}.`,
+  }[geofence];
+
   return (
-    <Screen title="Réglages">
+    <Screen eyebrow="Ton app" title="Réglages">
       <SectionTitle>Mon split</SectionTitle>
-      <Card>
-        {rotation.length === 0 && (
-          <ThemedText type="small" themeColor="textSecondary">
-            Aucune séance dans la rotation.
-          </ThemedText>
+      <Card index={0} style={styles.group}>
+        {rotation.length === 0 && others.length === 0 && (
+          <SettingRow
+            first
+            icon="square.stack.3d.up"
+            title="Aucune séance"
+            subtitle="Crée ton split pour que l’app te propose la suivante."
+          />
         )}
         {rotation.map((t, i) => (
-          <Row key={t.id}>
-            <Pressable style={{ flex: 1 }} onPress={() => router.push(`/template/${t.id}`)}>
-              <ThemedText>
-                {i + 1}. {t.name}
-              </ThemedText>
-            </Pressable>
-            <Button
-              label="↑"
-              variant="ghost"
-              small
+          <SettingRow
+            key={t.id}
+            first={i === 0}
+            icon={`${i + 1}.circle.fill` as SFSymbol}
+            title={t.name}
+            subtitle="Dans la rotation"
+            onPress={() => router.push(`/template/${t.id}`)}>
+            <IconButton
+              icon="chevron.up"
               disabled={i === 0}
               onPress={async () => {
                 await moveInRotation(t.id, -1);
                 reload();
               }}
             />
-            <Button
-              label="↓"
-              variant="ghost"
-              small
+            <IconButton
+              icon="chevron.down"
               disabled={i === rotation.length - 1}
               onPress={async () => {
                 await moveInRotation(t.id, 1);
                 reload();
               }}
             />
-          </Row>
+          </SettingRow>
         ))}
-        {others.length > 0 && (
-          <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: 8 }}>
-            Hors rotation
-          </ThemedText>
-        )}
-        {others.map((t) => (
-          <Pressable key={t.id} onPress={() => router.push(`/template/${t.id}`)}>
-            <ThemedText>{t.name}</ThemedText>
-          </Pressable>
-        ))}
-        <Button label="+ Nouvelle séance" variant="secondary" small onPress={() => router.push('/template/new')} />
-        {templates.length === 0 && (
-          <Button
-            label="Ajouter un split Push / Pull / Legs"
-            small
-            onPress={async () => {
-              await createPplPreset();
-              reload();
-            }}
+        {others.map((t, i) => (
+          <SettingRow
+            key={t.id}
+            first={rotation.length === 0 && i === 0}
+            icon="dumbbell"
+            title={t.name}
+            subtitle="Hors rotation"
+            onPress={() => router.push(`/template/${t.id}`)}
           />
-        )}
+        ))}
+        <View style={styles.groupActions}>
+          <Button
+            label="Nouvelle séance"
+            icon="plus"
+            variant="secondary"
+            small
+            onPress={() => router.push('/template/new')}
+          />
+          {templates.length === 0 && (
+            <Button
+              label="Split Push / Pull / Legs"
+              small
+              onPress={async () => {
+                await createPplPreset();
+                reload();
+              }}
+            />
+          )}
+        </View>
       </Card>
 
-      <SectionTitle>Salles et détection d&apos;arrivée</SectionTitle>
-      <Card>
-        <ThemedText type="small">
-          {
-            {
-              'expo-go':
-                'ℹ️ Dans Expo Go, la détection automatique est désactivée. Elle marche dans la version installée avec AltStore.',
-              'needs-permission':
-                'La détection a besoin de ta localisation « Toujours » pour noter tes jours de gym même quand l’app est fermée.',
-              'no-gyms': '✅ Localisation autorisée. Ajoute ta salle ci-dessous.',
-              active: `✅ Détection active pour ${gyms.length} ${gyms.length > 1 ? 'salles' : 'salle'}.`,
-            }[geofence]
-          }
-        </ThemedText>
-        {geofence === 'needs-permission' && <Button label="Activer la détection" onPress={enableDetection} />}
-
+      <SectionTitle>Salles et détection</SectionTitle>
+      <Card index={1} style={styles.group}>
+        <SettingRow
+          first
+          icon={geofence === 'active' ? 'location.fill' : 'location'}
+          title="Détection d’arrivée"
+          subtitle={geofenceText}>
+          {geofence === 'needs-permission' && <Button label="Activer" small onPress={enableDetection} />}
+        </SettingRow>
         {gyms.map((g) => (
-          <View key={g.id} style={styles.gym}>
-            <Pressable onPress={() => router.push(`/gym/${g.id}`)}>
-              <Row style={styles.between}>
-                <ThemedText style={{ fontWeight: 700, flex: 1 }}>📍 {g.name}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {g.radiusM} m ›
-                </ThemedText>
-              </Row>
-            </Pressable>
+          <View key={g.id}>
+            <SettingRow
+              icon="mappin.circle.fill"
+              title={g.name}
+              subtitle={`Zone de ${g.radiusM} m`}
+              onPress={() => router.push(`/gym/${g.id}`)}
+            />
             {isExpoGo && (
-              <Row>
+              <Row style={styles.simulate}>
                 <Button
                   label="Simuler arrivée"
                   variant="secondary"
@@ -189,8 +198,9 @@ export default function SettingsScreen() {
             )}
           </View>
         ))}
-
-        <Button label="+ Ajouter une salle" variant="secondary" onPress={() => router.push('/gym/new')} />
+        <View style={styles.groupActions}>
+          <Button label="Ajouter une salle" icon="plus" variant="secondary" small onPress={() => router.push('/gym/new')} />
+        </View>
       </Card>
 
       <SectionTitle>Unités</SectionTitle>
@@ -203,10 +213,9 @@ export default function SettingsScreen() {
         ]}
       />
 
-      <SectionTitle>Séances</SectionTitle>
-      <Card>
-        <Row style={styles.between}>
-          <ThemedText type="small">Repos par défaut</ThemedText>
+      <SectionTitle>Séances et rappels</SectionTitle>
+      <Card index={2} style={styles.group}>
+        <SettingRow first icon="timer" title="Repos par défaut">
           <Stepper
             value={settings.restDefaultS}
             min={15}
@@ -215,9 +224,8 @@ export default function SettingsScreen() {
             format={mmss}
             onChange={(v) => change('restDefaultS', v)}
           />
-        </Row>
-        <Row style={styles.between}>
-          <ThemedText type="small">Objectif par semaine</ThemedText>
+        </SettingRow>
+        <SettingRow icon="target" title="Objectif par semaine">
           <Stepper
             value={settings.weeklyGoal}
             min={1}
@@ -225,23 +233,11 @@ export default function SettingsScreen() {
             format={(v) => `${v} j`}
             onChange={(v) => change('weeklyGoal', v)}
           />
-        </Row>
-        <Row style={styles.between}>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="small">Bilan du dimanche</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Notification à 19 h avec tes séances, séries et records de la semaine.
-            </ThemedText>
-          </View>
+        </SettingRow>
+        <SettingRow icon="calendar.badge.clock" title="Bilan du dimanche" subtitle="Notification à 19 h">
           <Switch value={settings.weeklySummary} onValueChange={toggleSummary} trackColor={{ true: theme.accent }} />
-        </Row>
-        <Row style={styles.between}>
-          <View style={{ flex: 1 }}>
-            <ThemedText type="small">Rappel si pas de gym depuis</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Notification à 18 h quand ça fait trop longtemps.
-            </ThemedText>
-          </View>
+        </SettingRow>
+        <SettingRow icon="bell.badge" title="Rappel d’inactivité" subtitle="À 18 h après ce nombre de jours">
           <Stepper
             value={settings.inactivityDays}
             min={0}
@@ -253,44 +249,97 @@ export default function SettingsScreen() {
               reload();
             }}
           />
-        </Row>
+        </SettingRow>
       </Card>
 
       <SectionTitle>Sauvegarde</SectionTitle>
-      <Card>
-        <ThemedText type="small" themeColor="textSecondary">
-          Tes données sont seulement sur ce téléphone : si l&apos;app est supprimée, elles le sont aussi. Exporte une
-          sauvegarde vers iCloud Drive ou OneDrive pour la mettre à l&apos;abri.
-        </ThemedText>
-        <ThemedText type="smallBold">
-          Dernier export :{' '}
-          {settings.lastExportAt ? relativeDay(settings.lastExportAt, now) : 'jamais'}
-        </ThemedText>
-        <Button label="Exporter mes données" onPress={exportData} />
-        <Button label="Importer une sauvegarde" variant="ghost" onPress={importData} />
+      <Card index={3} style={styles.group}>
+        <SettingRow
+          first
+          icon="icloud.and.arrow.up"
+          title="Exporter mes données"
+          subtitle={`Dernier export : ${settings.lastExportAt ? relativeDay(settings.lastExportAt, now) : 'jamais'}`}
+          onPress={exportData}
+        />
+        <SettingRow
+          icon="square.and.arrow.down"
+          title="Importer une sauvegarde"
+          subtitle="Remplace toutes les données"
+          onPress={importData}
+        />
+        {snapshots.map((s) => (
+          <SettingRow
+            key={s.name}
+            icon="clock.arrow.circlepath"
+            title={`Copie auto du ${s.date}`}
+            subtitle="Restaurer cette copie"
+            onPress={() => restore(s.uri, `la copie du ${s.date}`)}
+          />
+        ))}
       </Card>
-
-      {snapshots.length > 0 && (
-        <>
-          <SectionTitle>Sauvegardes automatiques</SectionTitle>
-          <Card>
-            <ThemedText type="small" themeColor="textSecondary">
-              Une copie chaque semaine dans l&apos;app (les 8 dernières), pour revenir en arrière après une erreur.
-            </ThemedText>
-            {snapshots.map((s) => (
-              <Row key={s.name} style={styles.between}>
-                <ThemedText type="small">{s.date}</ThemedText>
-                <Button label="Restaurer" variant="ghost" small onPress={() => restore(s.uri, `la sauvegarde du ${s.date}`)} />
-              </Row>
-            ))}
-          </Card>
-        </>
-      )}
+      <ThemedText type="small" themeColor="textSecondary" style={styles.footnote}>
+        Tes données restent sur ce téléphone. Exporte-les vers iCloud Drive ou OneDrive pour les mettre à
+        l&apos;abri ; l&apos;app garde aussi une copie automatique par semaine (les 8 dernières).
+      </ThemedText>
     </Screen>
   );
 }
 
+/** One line of a grouped settings card: icon tile, title, detail and a control or a chevron. */
+function SettingRow({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  first,
+  children,
+}: {
+  icon: SFSymbol;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  first?: boolean;
+  children?: ReactNode;
+}) {
+  const theme = useTheme();
+  const body = (
+    <Row style={[styles.settingRow, !first && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+      <View style={[styles.tile, { borderColor: theme.hairline }]}>
+        <Icon name={icon} size={15} />
+      </View>
+      <View style={{ flex: 1, gap: 1 }}>
+        <ThemedText type="small" style={{ fontWeight: 600 }} numberOfLines={1}>
+          {title}
+        </ThemedText>
+        {subtitle && (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
+            {subtitle}
+          </ThemedText>
+        )}
+      </View>
+      {children}
+      {onPress && !children && <Icon name="chevron.right" size={11} color={theme.textSecondary} />}
+    </Row>
+  );
+  if (!onPress) return body;
+  return (
+    <Pressable
+      onPress={() => {
+        tapHaptic();
+        onPress();
+      }}
+      style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+      {body}
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  gym: { gap: 6, paddingVertical: 8 },
-  between: { justifyContent: 'space-between' },
+  group: { paddingVertical: 4, paddingHorizontal: 14, gap: 0 },
+  groupActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 12 },
+  settingRow: { gap: 12, paddingVertical: 12 },
+  tile: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  subtitle: { fontSize: 13, lineHeight: 17 },
+  simulate: { paddingBottom: 10, paddingLeft: 46 },
+  footnote: { textAlign: 'center', paddingHorizontal: 12, fontSize: 12, lineHeight: 17 },
 });

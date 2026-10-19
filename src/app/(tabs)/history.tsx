@@ -1,13 +1,16 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { Icon } from '@/components/icon';
 import { MonthCalendar } from '@/components/month-calendar';
 import { ThemedText } from '@/components/themed-text';
 import { Card, Row, Screen, SectionTitle } from '@/components/ui';
 import { listGyms, listVisits } from '@/db/gyms';
 import { listFinishedWorkouts, type WorkoutSummary } from '@/db/workouts';
 import { useFocusData } from '@/hooks/use-focus-data';
+import { useTheme } from '@/hooks/use-theme';
 import { attendanceDays, dayKey } from '@/logic/stats';
 import { isCountedVisit } from '@/logic/visits';
 
@@ -28,6 +31,7 @@ async function loadHistory() {
 }
 
 export default function HistoryScreen() {
+  const theme = useTheme();
   const [data] = useFocusData(loadHistory);
   const [month, setMonth] = useState(() => Date.now());
   const [selected, setSelected] = useState<string | null>(() => dayKey(Date.now()));
@@ -49,8 +53,8 @@ export default function HistoryScreen() {
   };
 
   return (
-    <Screen title="Historique">
-      <Card>
+    <Screen eyebrow="Tes jours de gym" title="Historique">
+      <Card glow index={0}>
         <MonthCalendar
           month={month}
           today={data.today}
@@ -59,30 +63,47 @@ export default function HistoryScreen() {
           onSelect={setSelected}
           onChangeMonth={changeMonth}
         />
-        <ThemedText type="small" themeColor="textSecondary">
-          {daysThisMonth} {daysThisMonth > 1 ? 'jours' : 'jour'} au gym ce mois-ci
-        </ThemedText>
+        <View style={[styles.divider, { backgroundColor: theme.hairline }]} />
+        <Row style={styles.between}>
+          <ThemedText type="caps">Ce mois-ci</ThemedText>
+          <ThemedText type="smallBold">
+            {daysThisMonth} {daysThisMonth > 1 ? 'jours' : 'jour'} au gym
+          </ThemedText>
+        </Row>
       </Card>
 
       {selected && (dayWorkouts.length > 0 || dayVisits.length > 0) && (
-        <Card>
-          {dayVisits.map((v) => (
-            <ThemedText key={v.id} type="small" themeColor="textSecondary">
-              {v.source === 'manual'
-                ? `✋ Check-in manuel à ${time(v.startAt)}`
-                : `📍 ${data.gymNames.get(v.gymId ?? -1) ?? 'Salle'} · ${time(v.startAt)}${v.endAt ? ` → ${time(v.endAt)}` : ''}`}
-            </ThemedText>
-          ))}
-          {dayWorkouts.map((w) => (
-            <WorkoutRow key={w.id} workout={w} />
-          ))}
-        </Card>
+        <Animated.View key={selected} entering={FadeInDown.duration(300)}>
+          <Card>
+            <ThemedText type="caps">{longDate(new Date(`${selected}T12:00:00`).getTime())}</ThemedText>
+            {dayVisits.map((v) => (
+              <Row key={v.id}>
+                <Icon name={v.source === 'manual' ? 'hand.raised.fill' : 'mappin.circle.fill'} size={15} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  {v.source === 'manual'
+                    ? `Check-in à ${time(v.startAt)}`
+                    : `${data.gymNames.get(v.gymId ?? -1) ?? 'Salle'} · ${time(v.startAt)}${v.endAt ? ` → ${time(v.endAt)}` : ''}`}
+                </ThemedText>
+              </Row>
+            ))}
+            {dayWorkouts.map((w) => (
+              <WorkoutRow key={w.id} workout={w} />
+            ))}
+          </Card>
+        </Animated.View>
       )}
 
       <SectionTitle>Dernières séances</SectionTitle>
-      {data.workouts.length === 0 && <ThemedText themeColor="textSecondary">Aucune séance pour l&apos;instant.</ThemedText>}
-      {data.workouts.slice(0, 30).map((w) => (
-        <Card key={w.id}>
+      {data.workouts.length === 0 && (
+        <Card index={1} style={styles.empty}>
+          <Icon name="figure.strengthtraining.traditional" size={28} />
+          <ThemedText type="small" themeColor="textSecondary">
+            Aucune séance pour l&apos;instant.
+          </ThemedText>
+        </Card>
+      )}
+      {data.workouts.slice(0, 30).map((w, i) => (
+        <Card key={w.id} index={Math.min(i + 1, 8)} onPress={() => router.push(`/workout/${w.id}`)}>
           <WorkoutRow workout={w} showDate />
         </Card>
       ))}
@@ -91,24 +112,38 @@ export default function HistoryScreen() {
 }
 
 function WorkoutRow({ workout, showDate }: { workout: WorkoutSummary; showDate?: boolean }) {
-  return (
-    <Pressable onPress={() => router.push(`/workout/${workout.id}`)}>
-      <Row style={styles.row}>
-        <ThemedText style={{ fontWeight: 700, flex: 1 }}>🏋️ {workout.name}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+  const theme = useTheme();
+  const content = (
+    <Row style={{ gap: 12 }}>
+      <View style={[styles.iconTile, { borderColor: theme.hairline }]}>
+        <Icon name="dumbbell.fill" size={15} />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <ThemedText style={{ fontWeight: 700 }} numberOfLines={1}>
+          {workout.name}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.date} numberOfLines={1}>
+          {showDate ? `${longDate(workout.startedAt)} · ` : ''}
           {workout.exerciseCount} exos · {workout.setCount} séries
         </ThemedText>
-      </Row>
-      {showDate && (
-        <ThemedText type="small" themeColor="textSecondary" style={styles.date}>
-          {longDate(workout.startedAt)} · {time(workout.startedAt)}
-        </ThemedText>
-      )}
-    </Pressable>
+      </View>
+      <Icon name="chevron.right" size={11} color={theme.textSecondary} />
+    </Row>
+  );
+  // In the list the whole card is the button; inside the day card the row is.
+  if (showDate) return content;
+  return (
+    <Card onPress={() => router.push(`/workout/${workout.id}`)} style={styles.inlineRow}>
+      {content}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { justifyContent: 'space-between' },
+  divider: { height: 1, marginVertical: 2 },
+  between: { justifyContent: 'space-between' },
+  empty: { alignItems: 'center', paddingVertical: 28, gap: 10 },
+  iconTile: { width: 36, height: 36, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   date: { textTransform: 'capitalize' },
+  inlineRow: { padding: 12 },
 });

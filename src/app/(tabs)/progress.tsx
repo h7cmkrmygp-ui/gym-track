@@ -1,15 +1,20 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
+import { Icon } from '@/components/icon';
 import { LineChart } from '@/components/line-chart';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Input, Row, Screen, SectionTitle, Segmented } from '@/components/ui';
+import { Button, Card, Chip, IconButton, Input, Row, Screen, SectionTitle, Segmented } from '@/components/ui';
+import { Gold } from '@/constants/theme';
 import { MUSCLE_GROUPS } from '@/data/exercises.fr';
 import { deleteBodyweight, listBodyweight, logBodyweight } from '@/db/bodyweight';
 import { listTrainedExercises } from '@/db/exercises';
 import { getSettings } from '@/db/settings';
 import { allCompletedSets, completedSetsWithMuscle } from '@/db/workouts';
+import { successHaptic } from '@/haptics';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
 import { computeRecords, progressSeries } from '@/logic/records';
@@ -46,7 +51,7 @@ export default function ProgressScreen() {
   const [tab, setTab] = useState<Tab>('exercises');
 
   return (
-    <Screen title="Progrès">
+    <Screen eyebrow="Ta progression" title="Progrès">
       <Segmented
         value={tab}
         onChange={setTab}
@@ -67,13 +72,24 @@ export default function ProgressScreen() {
 
 type Data = Awaited<ReturnType<typeof loadProgress>>;
 
+function Empty({ icon, text }: { icon: Parameters<typeof Icon>[0]['name']; text: string }) {
+  return (
+    <Card index={0} style={styles.empty}>
+      <Icon name={icon} size={28} />
+      <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
+        {text}
+      </ThemedText>
+    </Card>
+  );
+}
+
 function ExercisesTab({ data }: { data: Data }) {
   const theme = useTheme();
   const [exerciseId, setExerciseId] = useState<number | null>(null);
   const [metric, setMetric] = useState<Metric>('e1rm');
 
   if (data.exercises.length === 0) {
-    return <ThemedText themeColor="textSecondary">Termine une séance pour voir ta progression ici.</ThemedText>;
+    return <Empty icon="chart.line.uptrend.xyaxis" text="Termine une séance pour voir ta progression ici." />;
   }
 
   const selected = data.exercises.find((e) => e.id === exerciseId) ?? data.exercises[0];
@@ -85,20 +101,33 @@ function ExercisesTab({ data }: { data: Data }) {
 
   return (
     <>
-      <View style={styles.chips}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {data.exercises.map((e) => (
-          <Pressable
-            key={e.id}
-            onPress={() => setExerciseId(e.id)}
-            style={[styles.chip, { backgroundColor: e.id === selected.id ? theme.accent : theme.backgroundElement }]}>
-            <ThemedText type="small" style={e.id === selected.id ? { color: theme.onAccent } : undefined}>
-              {e.name}
-            </ThemedText>
-          </Pressable>
+          <Chip key={e.id} label={e.name} selected={e.id === selected.id} onPress={() => setExerciseId(e.id)} />
         ))}
-      </View>
-      <Card>
-        <ThemedText style={{ fontWeight: 700 }}>{selected.name}</ThemedText>
+      </ScrollView>
+      <Card glow index={0} key={`${selected.id}-${metric}`}>
+        <Row style={styles.between}>
+          <ThemedText type="caps">{metric === 'e1rm' ? '1RM estimé' : 'Charge max'}</ThemedText>
+          <Pressable onPress={() => router.push(`/exercise/${selected.id}`)} hitSlop={8}>
+            <Row style={{ gap: 4 }}>
+              <ThemedText type="caps" themeColor="textSecondary">
+                Historique
+              </ThemedText>
+              <Icon name="chevron.right" size={9} color={theme.textSecondary} />
+            </Row>
+          </Pressable>
+        </Row>
+        <ThemedText type="default" style={{ fontWeight: 700 }}>
+          {selected.name}
+        </ThemedText>
+        {points.length < 2 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            Il faut au moins 2 séances avec cet exercice pour tracer une courbe.
+          </ThemedText>
+        ) : (
+          <LineChart points={points} format={(y) => `${y} ${data.unit}`} />
+        )}
         <Segmented
           value={metric}
           onChange={setMetric}
@@ -107,29 +136,20 @@ function ExercisesTab({ data }: { data: Data }) {
             { value: 'max', label: 'Charge max' },
           ]}
         />
-        {points.length < 2 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            Il faut au moins 2 séances avec cet exercice pour tracer une courbe.
-          </ThemedText>
-        ) : (
-          <LineChart points={points} format={(y) => `${y} ${data.unit}`} />
-        )}
-        <Button
-          label="Voir toutes les séances ›"
-          variant="ghost"
-          small
-          onPress={() => router.push(`/exercise/${selected.id}`)}
-        />
       </Card>
       <SectionTitle>Séances</SectionTitle>
-      {[...series].reverse().map((p) => (
-        <Row key={p.workoutId} style={styles.listRow}>
-          <ThemedText type="small">{shortDate(p.at)}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            max {formatWeight(p.maxWeight, data.unit)} · 1RM est. {formatWeight(p.bestE1rm, data.unit)}
-          </ThemedText>
-        </Row>
-      ))}
+      <Card index={1} style={{ gap: 0 }}>
+        {[...series].reverse().map((p, i) => (
+          <Row
+            key={p.workoutId}
+            style={[styles.listRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+            <ThemedText type="small">{shortDate(p.at)}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              max {formatWeight(p.maxWeight, data.unit)} · 1RM {formatWeight(p.bestE1rm, data.unit)}
+            </ThemedText>
+          </Row>
+        ))}
+      </Card>
     </>
   );
 }
@@ -138,13 +158,41 @@ function ExercisesTab({ data }: { data: Data }) {
 const TARGET_MIN = 10;
 const TARGET_MAX = 20;
 
-function MusclesTab({ data }: { data: Data }) {
+/** One muscle's bar, growing from the left when shown. */
+function MuscleBar({ ratio, zone, delay }: { ratio: number; zone: [number, number]; delay: number }) {
   const theme = useTheme();
+  const [track, setTrack] = useState(0);
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.set(withDelay(delay, withTiming(track * ratio, { duration: 700, easing: Easing.out(Easing.cubic) })));
+  }, [track, ratio, delay, width]);
+
+  const bar = useAnimatedStyle(() => ({ width: width.value }));
+
+  return (
+    <View style={styles.barTrack} onLayout={(e) => setTrack(e.nativeEvent.layout.width)}>
+      <View
+        style={[
+          styles.targetZone,
+          { left: `${zone[0] * 100}%`, width: `${(zone[1] - zone[0]) * 100}%`, backgroundColor: theme.backgroundSelected },
+        ]}
+      />
+      {ratio > 0 && (
+        <Animated.View style={[styles.bar, bar]}>
+          <LinearGradient colors={[Gold[1], theme.chart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function MusclesTab({ data }: { data: Data }) {
   const { thisWeek } = data;
   const [week, setWeek] = useState(thisWeek);
   const rows = setsPerMuscle(data.muscleSets, MUSCLE_GROUPS, week);
   const scale = Math.max(TARGET_MAX + 4, ...rows.map((r) => r.sets));
-  const pct = (n: number) => `${(n / scale) * 100}%` as const;
+  const total = rows.reduce((n, r) => n + r.sets, 0);
 
   const changeWeek = (delta: -1 | 1) => {
     const d = new Date(week);
@@ -153,36 +201,27 @@ function MusclesTab({ data }: { data: Data }) {
   };
 
   return (
-    <Card>
-      <Row style={styles.listRow}>
-        <Button label="‹" variant="ghost" small onPress={() => changeWeek(-1)} />
-        <ThemedText type="smallBold">
-          {week === thisWeek ? 'Cette semaine' : `Semaine du ${shortDate(week)}`}
-        </ThemedText>
-        <Button label="›" variant="ghost" small disabled={week >= thisWeek} onPress={() => changeWeek(1)} />
+    <Card glow index={0} key={week}>
+      <Row style={styles.between}>
+        <IconButton icon="chevron.left" onPress={() => changeWeek(-1)} />
+        <View style={{ alignItems: 'center' }}>
+          <ThemedText type="caps">{week === thisWeek ? 'Cette semaine' : `Semaine du ${shortDate(week)}`}</ThemedText>
+          <ThemedText type="subtitle">
+            {total} {total > 1 ? 'séries' : 'série'}
+          </ThemedText>
+        </View>
+        <IconButton icon="chevron.right" disabled={week >= thisWeek} onPress={() => changeWeek(1)} />
       </Row>
       <ThemedText type="small" themeColor="textSecondary">
-        Séries terminées par muscle. Zone grisée : {TARGET_MIN} à {TARGET_MAX} séries par semaine, le repère
-        courant pour progresser.
+        Zone grisée : {TARGET_MIN} à {TARGET_MAX} séries par muscle et par semaine, le repère courant pour progresser.
       </ThemedText>
-      {rows.map((r) => (
+      {rows.map((r, i) => (
         <Row key={r.group} style={styles.barRow}>
           <ThemedText type="small" style={styles.barLabel} numberOfLines={1}>
             {r.group}
           </ThemedText>
-          <View style={styles.barTrack}>
-            <View
-              style={[
-                styles.targetZone,
-                { left: pct(TARGET_MIN), width: pct(TARGET_MAX - TARGET_MIN), backgroundColor: theme.backgroundSelected },
-              ]}
-            />
-            {r.sets > 0 && <View style={[styles.bar, { width: pct(r.sets), backgroundColor: theme.chart }]} />}
-          </View>
-          <ThemedText
-            type="smallBold"
-            themeColor={r.sets > 0 ? 'text' : 'textSecondary'}
-            style={styles.barValue}>
+          <MuscleBar ratio={r.sets / scale} zone={[TARGET_MIN / scale, TARGET_MAX / scale]} delay={i * 45} />
+          <ThemedText type="smallBold" themeColor={r.sets > 0 ? 'text' : 'textSecondary'} style={styles.barValue}>
             {r.sets}
           </ThemedText>
         </Row>
@@ -192,29 +231,47 @@ function MusclesTab({ data }: { data: Data }) {
 }
 
 function RecordsTab({ data }: { data: Data }) {
+  const theme = useTheme();
   if (data.records.size === 0) {
-    return <ThemedText themeColor="textSecondary">Tes records apparaîtront après ta première séance.</ThemedText>;
+    return <Empty icon="trophy" text="Tes records apparaîtront après ta première séance." />;
   }
   return (
     <>
       {data.exercises
         .filter((e) => data.records.has(e.id))
-        .map((e) => {
+        .map((e, i) => {
           const r = data.records.get(e.id)!;
           return (
-            <Card key={e.id}>
-              <ThemedText style={{ fontWeight: 700 }}>{e.name}</ThemedText>
-              <Row style={styles.listRow}>
-                <ThemedText type="small">🏋️ Charge max</ThemedText>
-                <ThemedText type="small">
-                  {formatWeight(r.maxWeight.value, data.unit)} · {shortDate(r.maxWeight.at)}
-                </ThemedText>
+            <Card key={e.id} index={i} onPress={() => router.push(`/exercise/${e.id}`)}>
+              <Row style={styles.between}>
+                <Row style={{ flex: 1 }}>
+                  <Icon name="trophy.fill" size={16} />
+                  <ThemedText type="default" style={{ fontWeight: 700, flexShrink: 1 }} numberOfLines={1}>
+                    {e.name}
+                  </ThemedText>
+                </Row>
+                <Icon name="chevron.right" size={10} color={theme.textSecondary} />
               </Row>
-              <Row style={styles.listRow}>
-                <ThemedText type="small">📈 1RM estimé</ThemedText>
-                <ThemedText type="small">
-                  {formatWeight(r.bestE1rm.value, data.unit)} · {shortDate(r.bestE1rm.at)}
-                </ThemedText>
+              <Row style={styles.recordRow}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="caps" themeColor="textSecondary">
+                    Charge max
+                  </ThemedText>
+                  <ThemedText type="subtitle">{formatWeight(r.maxWeight.value, data.unit)}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {shortDate(r.maxWeight.at)}
+                  </ThemedText>
+                </View>
+                <View style={[styles.vDivider, { backgroundColor: theme.hairline }]} />
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="caps" themeColor="textSecondary">
+                    1RM estimé
+                  </ThemedText>
+                  <ThemedText type="subtitle">{formatWeight(r.bestE1rm.value, data.unit)}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {shortDate(r.bestE1rm.at)}
+                  </ThemedText>
+                </View>
               </Row>
             </Card>
           );
@@ -224,12 +281,14 @@ function RecordsTab({ data }: { data: Data }) {
 }
 
 function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void }) {
+  const theme = useTheme();
   const [value, setValue] = useState('');
 
   const log = async () => {
     const n = Number(value.replace(',', '.'));
     if (!Number.isFinite(n) || n <= 0) return;
     await logBodyweight(dayKey(Date.now()), fromDisplay(n, data.unit));
+    successHaptic();
     setValue('');
     onChange();
   };
@@ -255,8 +314,8 @@ function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void })
 
   return (
     <>
-      <Card>
-        <ThemedText>Poids du jour</ThemedText>
+      <Card glow index={0}>
+        <ThemedText type="caps">Poids du jour</ThemedText>
         <Row>
           <Input
             style={{ flex: 1 }}
@@ -265,24 +324,31 @@ function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void })
             keyboardType="decimal-pad"
             placeholder={`ex. 180 ${data.unit}`}
           />
-          <Button label="Enregistrer" onPress={log} />
+          <Button label="Noter" icon="checkmark" onPress={log} />
         </Row>
       </Card>
       {points.length >= 2 && (
-        <Card>
+        <Card index={1} key={points.length}>
+          <ThemedText type="caps">Évolution</ThemedText>
           <LineChart points={points} format={(y) => `${y} ${data.unit}`} />
         </Card>
       )}
-      {[...data.bodyweight].reverse().map((b) => (
-        <Pressable key={b.id} onLongPress={() => remove(b.id, b.date)}>
-          <Row style={styles.listRow}>
-            <ThemedText type="small">{b.date}</ThemedText>
-            <ThemedText type="small">{formatWeight(b.weightKg, data.unit)}</ThemedText>
-          </Row>
-        </Pressable>
-      ))}
       {data.bodyweight.length > 0 && (
-        <ThemedText type="small" themeColor="textSecondary">
+        <Card index={2} style={{ gap: 0 }}>
+          {[...data.bodyweight].reverse().map((b, i) => (
+            <Pressable key={b.id} onLongPress={() => remove(b.id, b.date)}>
+              <Row style={[styles.listRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {b.date}
+                </ThemedText>
+                <ThemedText type="smallBold">{formatWeight(b.weightKg, data.unit)}</ThemedText>
+              </Row>
+            </Pressable>
+          ))}
+        </Card>
+      )}
+      {data.bodyweight.length > 0 && (
+        <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
           Appui long sur une pesée pour la supprimer.
         </ThemedText>
       )}
@@ -291,14 +357,17 @@ function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void })
 }
 
 const styles = StyleSheet.create({
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
-  listRow: { justifyContent: 'space-between' },
-  barRow: { gap: 8 },
-  barLabel: { width: 80 },
-  barTrack: { flex: 1, height: 14, justifyContent: 'center' },
-  targetZone: { position: 'absolute', top: 0, bottom: 0, opacity: 0.6, borderRadius: 2 },
+  empty: { alignItems: 'center', paddingVertical: 32, gap: 12 },
+  chipRow: { gap: 8, paddingRight: 16 },
+  between: { justifyContent: 'space-between' },
+  listRow: { justifyContent: 'space-between', paddingVertical: 11 },
+  recordRow: { gap: 16, marginTop: 4 },
+  vDivider: { width: 1, alignSelf: 'stretch' },
+  barRow: { gap: 10 },
+  barLabel: { width: 82 },
+  barTrack: { flex: 1, height: 12, justifyContent: 'center' },
+  targetZone: { position: 'absolute', top: 0, bottom: 0, opacity: 0.7, borderRadius: 3 },
   // Anchored to the left baseline, rounded only at the data end.
-  bar: { height: 14, borderTopRightRadius: 4, borderBottomRightRadius: 4 },
-  barValue: { width: 26, textAlign: 'right' },
+  bar: { height: 12, borderTopRightRadius: 4, borderBottomRightRadius: 4, overflow: 'hidden' },
+  barValue: { width: 26, textAlign: 'right', fontVariant: ['tabular-nums'] },
 });

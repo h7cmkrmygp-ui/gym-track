@@ -1,5 +1,6 @@
 import { router, type ErrorBoundaryProps } from 'expo-router';
 
+import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Screen } from '@/components/ui';
 
@@ -10,7 +11,8 @@ import { Button, Card, Screen } from '@/components/ui';
 export function ErrorScreen({ error, retry }: ErrorBoundaryProps) {
   return (
     <Screen title="Oups">
-      <Card>
+      <Card glow index={0}>
+        <Icon name="exclamationmark.triangle.fill" size={26} />
         <ThemedText type="smallBold">Cet écran a rencontré une erreur.</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           Tes données ne sont pas perdues. Fais une capture de ce message pour que le bug soit corrigé :
