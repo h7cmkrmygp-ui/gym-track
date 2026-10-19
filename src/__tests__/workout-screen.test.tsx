@@ -41,7 +41,7 @@ jest.mock('react-native-safe-area-context', () => require('react-native-safe-are
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: '1' }),
   useIsFocused: () => true,
-  Stack: { Screen: () => null },
+  Stack: { Screen: () => null, Toolbar: Object.assign(() => null, { Button: () => null }) },
   router: { push: jest.fn(), back: jest.fn(), replace: jest.fn() },
 }));
 jest.mock('@/db/workouts', () => ({

@@ -9,17 +9,54 @@ import {
   type PressableProps,
   type StyleProp,
   type TextInputProps,
+  type ViewProps,
   type ViewStyle,
 } from 'react-native';
+import { GlassView } from 'expo-glass-effect';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { Icon, type SFSymbol } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, Colors, MaxContentWidth, Radius, RingColors, Spacing } from '@/constants/theme';
+import { liquidGlass } from '@/env';
 import { selectHaptic, tapHaptic } from '@/haptics';
 import { useTheme } from '@/hooks/use-theme';
 
 const PRESS_SPRING = { damping: 18, stiffness: 320, mass: 0.6 };
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+/**
+ * Liquid Glass surface (iOS 26) for controls and floating panels, which belong above the
+ * content; cards stay solid. Before iOS 26, `fallback` fills it instead. Never fade a glass
+ * view or one of its parents in from opacity 0: the effect stops rendering.
+ */
+export function Glass({
+  fallback,
+  interactive,
+  tint,
+  style,
+  ...props
+}: ViewProps & {
+  /** Fill on systems without Liquid Glass. */
+  fallback: string;
+  /** Flexes under the finger, for controls. */
+  interactive?: boolean;
+  tint?: string;
+}) {
+  if (!liquidGlass) return <View {...props} style={[style, { backgroundColor: fallback }]} />;
+  return (
+    <GlassView
+      {...props}
+      style={style}
+      glassEffectStyle="regular"
+      colorScheme="dark"
+      isInteractive={interactive}
+      tintColor={tint}
+    />
+  );
+}
 
 /** Pressable that sinks slightly under the finger. */
 export function PressableScale({
@@ -32,8 +69,9 @@ export function PressableScale({
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Pressable
+    <AnimatedPressable
       {...props}
+      style={[style, animated]}
       onPressIn={(e) => {
         scale.set(withSpring(0.97, PRESS_SPRING));
         onPressIn?.(e);
@@ -42,8 +80,30 @@ export function PressableScale({
         scale.set(withSpring(1, PRESS_SPRING));
         onPressOut?.(e);
       }}>
-      <Animated.View style={[style, animated]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
+  );
+}
+
+/** Soft champagne and copper light behind the large title, for the glass bars to catch. */
+function AmbientGlow() {
+  return (
+    <View pointerEvents="none" style={styles.glow}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <RadialGradient id="champagne" cx="15%" cy="42%" rx="80%" ry="42%">
+            <Stop offset="0" stopColor={Colors.dark.accent} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={Colors.dark.accent} stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="copper" cx="100%" cy="30%" rx="65%" ry="36%">
+            <Stop offset="0" stopColor={RingColors.sets} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={RingColors.sets} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#copper)" />
+        <Rect width="100%" height="100%" fill="url(#champagne)" />
+      </Svg>
+    </View>
   );
 }
 
@@ -71,6 +131,7 @@ export function Screen({
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
       contentContainerStyle={styles.screen}>
+      <AmbientGlow />
       {eyebrow && (
         <ThemedText type="caps" style={styles.eyebrow}>
           {eyebrow}
@@ -158,22 +219,46 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  /** `tinted` is for buttons sitting on glass, which must not be glass themselves. */
+  variant?: 'primary' | 'secondary' | 'tinted' | 'ghost' | 'danger';
   icon?: SFSymbol;
   small?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
+/**
+ * Capsule button. The primary one is solid champagne; secondary and destructive ones are
+ * Liquid Glass, as in iOS 26.
+ */
 export function Button({ label, onPress, variant = 'primary', icon, small, disabled, style }: ButtonProps) {
   const theme = useTheme();
+  const glass = variant === 'secondary' || (variant === 'danger' && !small);
   const bg = {
     primary: theme.accent,
     secondary: theme.backgroundSelected,
+    tinted: theme.accentTint,
     ghost: 'transparent',
     danger: small ? 'transparent' : theme.backgroundElement,
   }[variant];
-  const fg = { primary: theme.onAccent, secondary: theme.accent, ghost: theme.accent, danger: theme.danger }[variant];
+  const fg = {
+    primary: theme.onAccent,
+    secondary: theme.accent,
+    tinted: theme.accent,
+    ghost: theme.accent,
+    danger: theme.danger,
+  }[variant];
+  // Dimming a glass view breaks it, so a disabled glass button dims its label instead.
+  const dim = { opacity: disabled ? 0.4 : 1 };
+  const shape = [styles.button, small && styles.buttonSmall];
+  const content = (
+    <>
+      {icon && <Icon name={icon} size={small ? 13 : 16} color={fg} style={glass ? dim : undefined} />}
+      <ThemedText type={small ? 'smallBold' : 'default'} style={[{ color: fg, fontWeight: 600 }, glass && dim]}>
+        {label}
+      </ThemedText>
+    </>
+  );
   return (
     <PressableScale
       onPress={() => {
@@ -181,16 +266,19 @@ export function Button({ label, onPress, variant = 'primary', icon, small, disab
         onPress();
       }}
       disabled={disabled}
-      style={[styles.button, small && styles.buttonSmall, { backgroundColor: bg, opacity: disabled ? 0.4 : 1 }, style]}>
-      {icon && <Icon name={icon} size={small ? 13 : 16} color={fg} />}
-      <ThemedText type={small ? 'smallBold' : 'default'} style={{ color: fg, fontWeight: 600 }}>
-        {label}
-      </ThemedText>
+      style={[!glass && dim, style]}>
+      {glass ? (
+        <Glass interactive fallback={bg} style={shape}>
+          {content}
+        </Glass>
+      ) : (
+        <View style={[shape, { backgroundColor: bg }]}>{content}</View>
+      )}
     </PressableScale>
   );
 }
 
-/** Small round gray button holding one icon (reorder, remove, previous/next). */
+/** Small round glass button holding one icon (reorder, remove, previous/next). */
 export function IconButton({
   icon,
   onPress,
@@ -211,13 +299,15 @@ export function IconButton({
         tapHaptic();
         onPress();
       }}
-      style={[styles.iconButton, { backgroundColor: theme.backgroundSelected, opacity: disabled ? 0.3 : 1 }]}>
-      <Icon name={icon} size={12} color={color} />
+      style={styles.iconButtonHit}>
+      <Glass interactive fallback={theme.backgroundSelected} style={styles.iconButton}>
+        <Icon name={icon} size={12} color={color} style={{ opacity: disabled ? 0.3 : 1 }} />
+      </Glass>
     </PressableScale>
   );
 }
 
-/** Capsule for quick actions and filters. */
+/** Capsule for quick actions and filters: glass, or solid champagne once selected. */
 export function Chip({
   label,
   icon,
@@ -231,22 +321,32 @@ export function Chip({
 }) {
   const theme = useTheme();
   const fg = selected ? theme.onAccent : theme.text;
+  const content = (
+    <>
+      {icon && <Icon name={icon} size={13} color={selected ? theme.onAccent : theme.accent} />}
+      <ThemedText type="small" style={{ color: fg, fontWeight: 600 }}>
+        {label}
+      </ThemedText>
+    </>
+  );
   return (
     <PressableScale
       onPress={() => {
         selectHaptic();
         onPress();
-      }}
-      style={[styles.chip, { backgroundColor: selected ? theme.accent : theme.backgroundSelected }]}>
-      {icon && <Icon name={icon} size={13} color={selected ? theme.onAccent : theme.accent} />}
-      <ThemedText type="small" style={{ color: fg, fontWeight: 600 }}>
-        {label}
-      </ThemedText>
+      }}>
+      {selected ? (
+        <View style={[styles.chip, { backgroundColor: theme.accent }]}>{content}</View>
+      ) : (
+        <Glass interactive fallback={theme.backgroundSelected} style={styles.chip}>
+          {content}
+        </Glass>
+      )}
     </PressableScale>
   );
 }
 
-/** iOS segmented control, with the selected segment sliding into place. */
+/** iOS segmented control on glass, with the selected capsule sliding into place. */
 export function Segmented<T extends string>({
   options,
   value,
@@ -265,7 +365,10 @@ export function Segmented<T extends string>({
   }));
 
   return (
-    <View style={styles.segmented} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <Glass
+      fallback="rgba(118, 118, 128, 0.24)"
+      style={styles.segmented}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && <Animated.View style={[styles.segmentPill, pill]} />}
       {options.map((o) => (
         <Pressable
@@ -280,7 +383,7 @@ export function Segmented<T extends string>({
           </ThemedText>
         </Pressable>
       ))}
-    </View>
+    </Glass>
   );
 }
 
@@ -363,7 +466,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   eyebrow: { marginTop: -4, marginBottom: 2 },
-  card: { borderRadius: Radius.card, padding: Spacing.three, gap: 10, overflow: 'hidden' },
+  glow: { position: 'absolute', top: -340, left: -Spacing.three, right: -Spacing.three, height: 680 },
+  card: { borderRadius: Radius.card, borderCurve: 'continuous', padding: Spacing.three, gap: 10, overflow: 'hidden' },
   cardHeader: { marginBottom: 2 },
   flex: { flex: 1 },
   sectionTitle: { marginTop: Spacing.three },
@@ -372,42 +476,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     borderRadius: Radius.control,
-    paddingVertical: 14,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: 15,
+    paddingHorizontal: Spacing.four,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonSmall: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, gap: 5 },
-  iconButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  iconButtonHit: { borderRadius: 16 },
+  iconButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: Radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 15,
+    paddingVertical: 9,
   },
-  segmented: {
-    flexDirection: 'row',
-    borderRadius: 9,
-    padding: 2,
-    backgroundColor: 'rgba(118, 118, 128, 0.24)',
-  },
+  segmented: { flexDirection: 'row', borderRadius: Radius.pill, padding: 2 },
   segmentPill: {
     position: 'absolute',
     top: 2,
     bottom: 2,
     left: 2,
-    borderRadius: 7,
-    backgroundColor: '#636366',
+    borderRadius: Radius.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
-  segment: { flex: 1, alignItems: 'center', paddingVertical: 7 },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   segmentLabel: { color: '#FFFFFF', textTransform: 'none', fontSize: 13 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepperValue: { minWidth: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
-  stepperPill: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, height: 32 },
+  stepperPill: { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.pill, height: 32 },
   stepperHalf: { width: 46, height: 32, alignItems: 'center', justifyContent: 'center' },
   stepperDivider: { width: 1, height: 18 },
-  input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 17 },
+  input: { borderRadius: 14, borderCurve: 'continuous', paddingHorizontal: 14, paddingVertical: 12, fontSize: 17 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

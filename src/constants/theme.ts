@@ -18,6 +18,8 @@ const palette = {
   hairline: '#38383A',
   accent: '#E3D3B5',
   onAccent: '#000000',
+  /** Translucent champagne behind accent text, for buttons on glass (iOS "tinted" style). */
+  accentTint: 'rgba(227, 211, 181, 0.16)',
   /** Bars and single-series chart marks. */
   chart: '#B98B3E',
   success: '#30D158',
@@ -72,7 +74,8 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const Radius = { card: 14, control: 12, pill: 999 } as const;
+/** iOS 26 corners: generous cards, capsule controls. */
+export const Radius = { card: 24, control: 999, pill: 999 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;

@@ -8,8 +8,8 @@ import { ExercisePicker } from '@/components/exercise-picker';
 import { Icon } from '@/components/icon';
 import { ProgressRing } from '@/components/progress-ring';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, IconButton, Input, PressableScale, Row, Screen } from '@/components/ui';
-import { RingColors, RoundedFont } from '@/constants/theme';
+import { Button, Card, Glass, IconButton, Input, PressableScale, Row, Screen } from '@/components/ui';
+import { Colors, RingColors, RoundedFont } from '@/constants/theme';
 import { getSettings } from '@/db/settings';
 import {
   addExerciseToWorkout,
@@ -31,6 +31,7 @@ import {
   type WorkoutExercise,
   type WorkoutSet,
 } from '@/db/workouts';
+import { liquidGlass } from '@/env';
 import { setDoneHaptic, successHaptic, tapHaptic } from '@/haptics';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
@@ -120,6 +121,19 @@ export default function WorkoutScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: detail.name }} />
+      {active && (
+        // Always within reach in the bar, as glass buttons on iOS 26.
+        <Stack.Toolbar placement="right">
+          <Stack.Toolbar.Button icon="plus" accessibilityLabel="Ajouter des exercices" onPress={() => setPicking(true)} />
+          <Stack.Toolbar.Button
+            variant="prominent"
+            tintColor={Colors.dark.accent}
+            style={{ color: Colors.dark.onAccent, fontWeight: '600' }}
+            onPress={finish}>
+            Terminer
+          </Stack.Toolbar.Button>
+        </Stack.Toolbar>
+      )}
       <Screen scrollRef={scrollRef}>
         <Summary detail={detail} />
         {detail.exercises.length === 0 && (
@@ -518,29 +532,28 @@ function RestBar() {
     <Animated.View
       entering={SlideInDown.springify().damping(18)}
       exiting={SlideOutDown.duration(220)}
-      style={[
-        styles.restBar,
-        { backgroundColor: theme.backgroundElement, marginBottom: insets.bottom + 8 },
-      ]}>
-      <Row style={{ gap: 14 }}>
-        <ProgressRing countdown={{ endsAt: timer.endsAt, totalMs: timer.totalS * 1000 }} color={RingColors.minutes} size={58} stroke={7}>
-          <Icon name={over ? 'checkmark' : 'timer'} size={16} />
-        </ProgressRing>
-        <View style={{ flex: 1 }}>
-          <ThemedText type="caps">{over ? 'Repos terminé' : 'Repos'}</ThemedText>
-          <ThemedText style={styles.restTime}>{mmss(Math.ceil(remaining))}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {timer.exerciseName}
-          </ThemedText>
-        </View>
-        <View style={{ gap: 6 }}>
-          <Row style={{ gap: 6 }}>
-            <Button label="−15" variant="secondary" small onPress={() => addRest(-15)} />
-            <Button label="+15" variant="secondary" small onPress={() => addRest(15)} />
-          </Row>
-          <Button label={over ? 'OK' : 'Passer'} small onPress={stopRest} />
-        </View>
-      </Row>
+      style={[styles.restBar, !liquidGlass && styles.restShadow, { marginBottom: insets.bottom + 8 }]}>
+      <Glass fallback={theme.backgroundElement} style={styles.restGlass}>
+        <Row style={{ gap: 14 }}>
+          <ProgressRing countdown={{ endsAt: timer.endsAt, totalMs: timer.totalS * 1000 }} color={RingColors.minutes} size={58} stroke={7}>
+            <Icon name={over ? 'checkmark' : 'timer'} size={16} />
+          </ProgressRing>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="caps">{over ? 'Repos terminé' : 'Repos'}</ThemedText>
+            <ThemedText style={styles.restTime}>{mmss(Math.ceil(remaining))}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+              {timer.exerciseName}
+            </ThemedText>
+          </View>
+          <View style={{ gap: 6 }}>
+            <Row style={{ gap: 6 }}>
+              <Button label="−15" variant="tinted" small onPress={() => addRest(-15)} />
+              <Button label="+15" variant="tinted" small onPress={() => addRest(15)} />
+            </Row>
+            <Button label={over ? 'OK' : 'Passer'} small onPress={stopRest} />
+          </View>
+        </Row>
+      </Glass>
     </Animated.View>
   );
 }
@@ -565,8 +578,10 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 0,
-    borderRadius: 22,
-    padding: 14,
+  },
+  restGlass: { borderRadius: 30, borderCurve: 'continuous', padding: 14 },
+  restShadow: {
+    borderRadius: 30,
     shadowColor: '#000',
     shadowOpacity: 0.5,
     shadowRadius: 20,

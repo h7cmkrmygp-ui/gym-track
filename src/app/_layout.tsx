@@ -12,6 +12,7 @@ import { Colors } from '@/constants/theme';
 import { getDb } from '@/db/client';
 import { getSettings, setSetting } from '@/db/settings';
 import { getActiveWorkout } from '@/db/workouts';
+import { liquidGlass } from '@/env';
 import { syncGeofences } from '@/geofence/regions';
 import { endRestActivity } from '@/live-activity';
 import { handleNotificationResponse } from '@/notifications/responses';
@@ -87,7 +88,7 @@ export default function RootLayout() {
           headerTintColor: Colors.dark.accent,
           // Translucent bar over the content, as in Apple's apps.
           headerTransparent: true,
-          headerBlurEffect: 'systemChromeMaterialDark',
+          headerBlurEffect: liquidGlass ? undefined : 'systemChromeMaterialDark',
           headerShadowVisible: false,
           headerTitleStyle: { color: Colors.dark.text },
           contentStyle: { backgroundColor: Colors.dark.background },
