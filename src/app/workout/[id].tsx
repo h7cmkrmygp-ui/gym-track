@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
@@ -10,7 +9,7 @@ import { Icon } from '@/components/icon';
 import { ProgressRing } from '@/components/progress-ring';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, IconButton, Input, PressableScale, Row, Screen } from '@/components/ui';
-import { DisplayFont, Gold } from '@/constants/theme';
+import { RingColors, RoundedFont } from '@/constants/theme';
 import { getSettings } from '@/db/settings';
 import {
   addExerciseToWorkout,
@@ -170,37 +169,45 @@ export default function WorkoutScreen() {
   );
 }
 
-/** Ring of sets done and the elapsed time while training; date and length afterwards. */
+/** "1:05:09" for a running stopwatch. */
+const clock = (ms: number) => {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = String(Math.floor((total % 3600) / 60)).padStart(2, '0');
+  const s = String(total % 60).padStart(2, '0');
+  return h ? `${h}:${m}:${s}` : `${m}:${s}`;
+};
+
+/** A live stopwatch in rounded digits and the ring of sets done, like a Fitness workout. */
 function Summary({ detail }: { detail: WorkoutDetail }) {
   const active = detail.endedAt === null;
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!active) return;
-    const interval = setInterval(() => setNow(Date.now()), 30_000);
+    const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, [active]);
 
   const sets = detail.exercises.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.completedAt !== null).length;
-  const duration = formatDuration((detail.endedAt ?? now) - detail.startedAt);
   const date = new Date(detail.startedAt).toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <Card glow index={0}>
+    <Card>
       <Row style={styles.summaryRow}>
-        <ProgressRing progress={sets.length ? done / sets.length : 0} size={84} stroke={7}>
-          <ThemedText type="smallBold">
-            {done}/{sets.length}
-          </ThemedText>
-        </ProgressRing>
-        <View style={{ flex: 1, gap: 2 }}>
-          <ThemedText type="caps">{active ? 'En cours' : date}</ThemedText>
-          <ThemedText type="subtitle">{duration}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {done} {done > 1 ? 'séries faites' : 'série faite'} sur {sets.length}
+        <View style={{ flex: 1 }}>
+          <ThemedText type="caps">{active ? 'Durée' : date}</ThemedText>
+          {active ? (
+            <ThemedText style={[styles.stopwatch, { color: RingColors.days }]}>{clock(now - detail.startedAt)}</ThemedText>
+          ) : (
+            <ThemedText type="hero">{formatDuration(detail.endedAt! - detail.startedAt)}</ThemedText>
+          )}
+          <ThemedText type="caps">
+            {done}/{sets.length} séries
           </ThemedText>
         </View>
+        <ProgressRing progress={sets.length ? done / sets.length : 0} color={RingColors.sets} size={78} stroke={12} />
       </Row>
     </Card>
   );
@@ -262,11 +269,11 @@ function ExerciseCard({
   ].filter(Boolean);
 
   return (
-    <Card index={index + 1}>
+    <Card>
       <Row style={styles.exerciseHeader}>
-        <View style={[styles.badge, { borderColor: allDone ? theme.accent : theme.hairline }]}>
+        <View style={[styles.badge, { backgroundColor: allDone ? theme.accent : theme.backgroundSelected }]}>
           {allDone ? (
-            <Icon name="checkmark" size={11} />
+            <Icon name="checkmark" size={11} color={theme.onAccent} />
           ) : (
             <ThemedText type="smallBold" style={{ color: theme.accent }}>
               {index + 1}
@@ -290,7 +297,7 @@ function ExerciseCard({
       </Row>
 
       {showPlateau && (
-        <Animated.View entering={FadeIn} style={[styles.plateau, { borderColor: theme.hairline }]}>
+        <Animated.View entering={FadeIn} style={[styles.plateau, { backgroundColor: theme.backgroundSelected }]}>
           <Row style={{ alignItems: 'flex-start' }}>
             <Icon name="exclamationmark.triangle.fill" size={14} />
             <ThemedText type="small" style={{ flex: 1 }}>
@@ -415,7 +422,7 @@ function SetRow({
       },
     ]);
 
-  const inputStyle = [styles.colInput, done && { color: theme.accent, borderColor: 'rgba(227, 211, 181, 0.35)' }];
+  const inputStyle = [styles.colInput, done && { color: theme.accent }];
 
   return (
     <Pressable onLongPress={confirmDelete}>
@@ -456,12 +463,10 @@ function SetRow({
         <PressableScale
           onPress={toggle}
           hitSlop={8}
-          style={[styles.colCheck, styles.check, { borderColor: done ? 'transparent' : theme.hairline }]}>
+          style={[styles.colCheck, styles.check, { backgroundColor: done ? theme.accent : theme.backgroundSelected }]}>
           {done ? (
-            <Animated.View entering={ZoomIn.springify().damping(12)} style={StyleSheet.absoluteFill}>
-              <LinearGradient colors={Gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.checkFill}>
-                <Icon name="checkmark" size={14} color={theme.onAccent} weight="bold" />
-              </LinearGradient>
+            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.checkFill}>
+              <Icon name="checkmark" size={14} color={theme.onAccent} weight="bold" />
             </Animated.View>
           ) : (
             <Icon name="checkmark" size={14} color={theme.textSecondary} />
@@ -511,10 +516,10 @@ function RestBar() {
       exiting={SlideOutDown.duration(220)}
       style={[
         styles.restBar,
-        { backgroundColor: 'rgba(18, 19, 22, 0.97)', borderColor: theme.hairline, marginBottom: insets.bottom + 8 },
+        { backgroundColor: theme.backgroundElement, marginBottom: insets.bottom + 8 },
       ]}>
       <Row style={{ gap: 14 }}>
-        <ProgressRing countdown={{ endsAt: timer.endsAt, totalMs: timer.totalS * 1000 }} size={58} stroke={5}>
+        <ProgressRing countdown={{ endsAt: timer.endsAt, totalMs: timer.totalS * 1000 }} color={RingColors.minutes} size={58} stroke={7}>
           <Icon name={over ? 'checkmark' : 'timer'} size={16} />
         </ProgressRing>
         <View style={{ flex: 1 }}>
@@ -539,7 +544,7 @@ function RestBar() {
 const styles = StyleSheet.create({
   summaryRow: { gap: 16 },
   exerciseHeader: { alignItems: 'center', gap: 10 },
-  badge: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   tableHead: { marginTop: 4 },
   setRow: { borderRadius: 12, paddingVertical: 5, paddingHorizontal: 4 },
   colIndex: { width: 18, textAlign: 'center' },
@@ -547,18 +552,22 @@ const styles = StyleSheet.create({
   colInput: { width: 72, textAlign: 'center', paddingVertical: 8, fontWeight: 600, fontVariant: ['tabular-nums'] },
   colInputHead: { width: 72, textAlign: 'center' },
   colCheck: { width: 36 },
-  check: { height: 36, borderRadius: 18, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  checkFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  check: { height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  checkFill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   pr: { flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 26, marginTop: 4 },
-  plateau: { borderWidth: 1, borderRadius: 14, padding: 12, gap: 10, backgroundColor: 'rgba(227, 211, 181, 0.05)' },
+  plateau: { borderRadius: 12, padding: 12, gap: 10 },
   restBar: {
     position: 'absolute',
     left: 12,
     right: 12,
     bottom: 0,
-    borderRadius: 24,
-    borderWidth: 1,
+    borderRadius: 22,
     padding: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
   },
-  restTime: { fontFamily: DisplayFont.semibold, fontSize: 34, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  restTime: { fontFamily: RoundedFont, fontWeight: 700, fontSize: 34, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  stopwatch: { fontFamily: RoundedFont, fontWeight: 700, fontSize: 52, lineHeight: 58, fontVariant: ['tabular-nums'] },
 });

@@ -7,7 +7,7 @@ import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 import { listSnapshots, restoreFromFile, shareBackup } from '@/backup';
 import { Icon, type SFSymbol } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, IconButton, Row, Screen, SectionTitle, Segmented, Stepper } from '@/components/ui';
+import { Button, Card, GroupHeader, IconButton, Row, Screen, Segmented, Stepper } from '@/components/ui';
 import { listGyms } from '@/db/gyms';
 import { getSettings, setSetting } from '@/db/settings';
 import { createPplPreset, listTemplates, moveInRotation } from '@/db/templates';
@@ -36,7 +36,7 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const [data, reload] = useFocusData(loadSettings);
 
-  if (!data) return <Screen title="Réglages">{null}</Screen>;
+  if (!data) return <Screen>{null}</Screen>;
   const { settings, templates, gyms, geofence, snapshots, now } = data;
   const rotation = templates.filter((t) => t.rotationOrder !== null);
   const others = templates.filter((t) => t.rotationOrder === null);
@@ -95,9 +95,9 @@ export default function SettingsScreen() {
   }[geofence];
 
   return (
-    <Screen eyebrow="Ton app" title="Réglages">
-      <SectionTitle>Mon split</SectionTitle>
-      <Card index={0} style={styles.group}>
+    <Screen>
+      <GroupHeader>Mon split</GroupHeader>
+      <Card style={styles.group}>
         {rotation.length === 0 && others.length === 0 && (
           <SettingRow
             first
@@ -163,8 +163,8 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <SectionTitle>Salles et détection</SectionTitle>
-      <Card index={1} style={styles.group}>
+      <GroupHeader>Salles et détection</GroupHeader>
+      <Card style={styles.group}>
         <SettingRow
           first
           icon={geofence === 'active' ? 'location.fill' : 'location'}
@@ -199,11 +199,17 @@ export default function SettingsScreen() {
           </View>
         ))}
         <View style={styles.groupActions}>
-          <Button label="Ajouter une salle" icon="plus" variant="secondary" small onPress={() => router.push('/gym/new')} />
+          <Button
+            label="Ajouter une salle"
+            icon="plus"
+            variant="secondary"
+            small
+            onPress={() => router.push('/gym/new')}
+          />
         </View>
       </Card>
 
-      <SectionTitle>Unités</SectionTitle>
+      <GroupHeader>Unités</GroupHeader>
       <Segmented<Unit>
         value={settings.unit}
         onChange={(v) => change('unit', v)}
@@ -213,8 +219,8 @@ export default function SettingsScreen() {
         ]}
       />
 
-      <SectionTitle>Séances et rappels</SectionTitle>
-      <Card index={2} style={styles.group}>
+      <GroupHeader>Séances et rappels</GroupHeader>
+      <Card style={styles.group}>
         <SettingRow first icon="timer" title="Repos par défaut">
           <Stepper
             value={settings.restDefaultS}
@@ -252,8 +258,8 @@ export default function SettingsScreen() {
         </SettingRow>
       </Card>
 
-      <SectionTitle>Sauvegarde</SectionTitle>
-      <Card index={3} style={styles.group}>
+      <GroupHeader>Sauvegarde</GroupHeader>
+      <Card style={styles.group}>
         <SettingRow
           first
           icon="icloud.and.arrow.up"
@@ -278,8 +284,8 @@ export default function SettingsScreen() {
         ))}
       </Card>
       <ThemedText type="small" themeColor="textSecondary" style={styles.footnote}>
-        Tes données restent sur ce téléphone. Exporte-les vers iCloud Drive ou OneDrive pour les mettre à
-        l&apos;abri ; l&apos;app garde aussi une copie automatique par semaine (les 8 dernières).
+        Tes données restent sur ce téléphone. Exporte-les vers iCloud Drive ou OneDrive pour les mettre à l&apos;abri ;
+        l&apos;app garde aussi une copie automatique par semaine (les 8 dernières).
       </ThemedText>
     </Screen>
   );
@@ -303,23 +309,26 @@ function SettingRow({
 }) {
   const theme = useTheme();
   const body = (
-    <Row style={[styles.settingRow, !first && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
-      <View style={[styles.tile, { borderColor: theme.hairline }]}>
-        <Icon name={icon} size={15} />
-      </View>
-      <View style={{ flex: 1, gap: 1 }}>
-        <ThemedText type="small" style={{ fontWeight: 600 }} numberOfLines={1}>
-          {title}
-        </ThemedText>
-        {subtitle && (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-            {subtitle}
+    <>
+      {!first && <View style={[styles.separator, { backgroundColor: theme.hairline }]} />}
+      <Row style={styles.settingRow}>
+        <View style={[styles.tile, { backgroundColor: theme.accent }]}>
+          <Icon name={icon} size={15} color={theme.onAccent} />
+        </View>
+        <View style={{ flex: 1, gap: 1 }}>
+          <ThemedText type="small" style={{ fontWeight: 600 }} numberOfLines={1}>
+            {title}
           </ThemedText>
-        )}
-      </View>
-      {children}
-      {onPress && !children && <Icon name="chevron.right" size={11} color={theme.textSecondary} />}
-    </Row>
+          {subtitle && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
+              {subtitle}
+            </ThemedText>
+          )}
+        </View>
+        {children}
+        {onPress && !children && <Icon name="chevron.right" size={12} color={theme.textSecondary} />}
+      </Row>
+    </>
   );
   if (!onPress) return body;
   return (
@@ -335,10 +344,11 @@ function SettingRow({
 }
 
 const styles = StyleSheet.create({
-  group: { paddingVertical: 4, paddingHorizontal: 14, gap: 0 },
+  group: { paddingVertical: 2, paddingHorizontal: 14, gap: 0 },
   groupActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 12 },
-  settingRow: { gap: 12, paddingVertical: 12 },
-  tile: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  settingRow: { gap: 12, paddingVertical: 11 },
+  separator: { height: StyleSheet.hairlineWidth * 2, marginLeft: 42 },
+  tile: { width: 30, height: 30, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   subtitle: { fontSize: 13, lineHeight: 17 },
   simulate: { paddingBottom: 10, paddingLeft: 46 },
   footnote: { textAlign: 'center', paddingHorizontal: 12, fontSize: 12, lineHeight: 17 },

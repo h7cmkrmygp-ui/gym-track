@@ -108,7 +108,7 @@ export default function TemplateScreen() {
 
         <SectionTitle>Exercices</SectionTitle>
         {exercises.length === 0 && (
-          <Card index={0} style={styles.empty}>
+          <Card style={styles.empty}>
             <Icon name="list.bullet.rectangle" size={26} />
             <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
               Ajoute tes exercices, puis règle les séries, les reps et le repos de chacun.
@@ -117,9 +117,9 @@ export default function TemplateScreen() {
         )}
         {exercises.map((ex, i) => (
           <Animated.View key={`${ex.exerciseId}-${i}`} layout={LinearTransition.springify().damping(20)}>
-            <Card index={Math.min(i, 6)}>
+            <Card>
               <Row style={{ gap: 10 }}>
-                <View style={[styles.badge, { borderColor: theme.hairline }]}>
+                <View style={[styles.badge, { backgroundColor: theme.backgroundSelected }]}>
                   <ThemedText type="smallBold" style={{ color: theme.accent }}>
                     {i + 1}
                   </ThemedText>
@@ -237,6 +237,6 @@ export default function TemplateScreen() {
 const styles = StyleSheet.create({
   field: { justifyContent: 'space-between' },
   empty: { alignItems: 'center', paddingVertical: 24, gap: 10 },
-  badge: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   label: { flex: 1 },
 });

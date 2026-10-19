@@ -1,32 +1,28 @@
 import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
-import { Gold } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-/**
- * Gold ring filled to `progress` (0 to 1), animated on every change. With `countdown`
- * it instead empties linearly until `endsAt` (the rest timer), driven on the UI thread.
- */
-export function ProgressRing({
+/** One ring drawn inside an existing <Svg>, centered on `center`. */
+function RingArc({
+  center,
+  radius,
+  stroke,
+  color,
   progress = 0,
   countdown,
-  size = 120,
-  stroke = 10,
-  children,
 }: {
+  center: number;
+  radius: number;
+  stroke: number;
+  color: string;
   progress?: number;
   countdown?: { endsAt: number; totalMs: number };
-  size?: number;
-  stroke?: number;
-  children?: ReactNode;
 }) {
-  const theme = useTheme();
-  const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const value = useSharedValue(0);
   const endsAt = countdown?.endsAt;
@@ -40,7 +36,7 @@ export function ProgressRing({
       return;
     }
     const target = Math.max(0, Math.min(1, progress));
-    value.set(withTiming(target, { duration: 900, easing: Easing.out(Easing.cubic) }));
+    value.set(withTiming(target, { duration: 1000, easing: Easing.out(Easing.cubic) }));
   }, [progress, endsAt, totalMs, value]);
 
   const animatedProps = useAnimatedProps(() => ({
@@ -48,39 +44,87 @@ export function ProgressRing({
   }));
 
   return (
+    <>
+      {/* The track: the same colour, dimmed, as in Fitness. */}
+      <Circle cx={center} cy={center} r={radius} stroke={color} strokeOpacity={0.22} strokeWidth={stroke} fill="none" />
+      <AnimatedCircle
+        cx={center}
+        cy={center}
+        r={radius}
+        stroke={color}
+        strokeWidth={stroke}
+        strokeLinecap="round"
+        fill="none"
+        strokeDasharray={`${circumference} ${circumference}`}
+        animatedProps={animatedProps}
+        // Start at 12 o'clock and go clockwise.
+        transform={`rotate(-90 ${center} ${center})`}
+      />
+    </>
+  );
+}
+
+/**
+ * Ring filled to `progress` (0 to 1), animated on every change. With `countdown` it
+ * instead empties linearly until `endsAt` (the rest timer), driven on the UI thread.
+ */
+export function ProgressRing({
+  progress = 0,
+  countdown,
+  color,
+  size = 120,
+  stroke = 12,
+  children,
+}: {
+  progress?: number;
+  countdown?: { endsAt: number; totalMs: number };
+  color?: string;
+  size?: number;
+  stroke?: number;
+  children?: ReactNode;
+}) {
+  const theme = useTheme();
+  return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        <Defs>
-          <LinearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={Gold[0]} />
-            <Stop offset="0.5" stopColor={Gold[1]} />
-            <Stop offset="1" stopColor={Gold[2]} />
-          </LinearGradient>
-        </Defs>
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={theme.backgroundSelected}
-          strokeWidth={stroke}
-          fill="none"
-        />
-        <AnimatedCircle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="url(#ring)"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
-          animatedProps={animatedProps}
-          // Start at 12 o'clock and go clockwise.
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        <RingArc
+          center={size / 2}
+          radius={(size - stroke) / 2}
+          stroke={stroke}
+          color={color ?? theme.accent}
+          progress={progress}
+          countdown={countdown}
         />
       </Svg>
       {children && <View style={[StyleSheet.absoluteFill, styles.center]}>{children}</View>}
     </View>
+  );
+}
+
+/** Concentric rings, outermost first, like Fitness's Move / Exercise / Stand. */
+export function ActivityRings({
+  rings,
+  size = 150,
+  stroke = 18,
+}: {
+  rings: { progress: number; color: string }[];
+  size?: number;
+  stroke?: number;
+}) {
+  const gap = 2;
+  return (
+    <Svg width={size} height={size}>
+      {rings.map((ring, i) => (
+        <RingArc
+          key={i}
+          center={size / 2}
+          radius={(size - stroke) / 2 - i * (stroke + gap)}
+          stroke={stroke}
+          color={ring.color}
+          progress={ring.progress}
+        />
+      ))}
+    </Svg>
   );
 }
 

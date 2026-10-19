@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -8,7 +7,6 @@ import { Icon } from '@/components/icon';
 import { LineChart } from '@/components/line-chart';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, IconButton, Input, Row, Screen, SectionTitle, Segmented } from '@/components/ui';
-import { Gold } from '@/constants/theme';
 import { MUSCLE_GROUPS } from '@/data/exercises.fr';
 import { deleteBodyweight, listBodyweight, logBodyweight } from '@/db/bodyweight';
 import { listTrainedExercises } from '@/db/exercises';
@@ -51,7 +49,7 @@ export default function ProgressScreen() {
   const [tab, setTab] = useState<Tab>('exercises');
 
   return (
-    <Screen eyebrow="Ta progression" title="Progrès">
+    <Screen>
       <Segmented
         value={tab}
         onChange={setTab}
@@ -74,7 +72,7 @@ type Data = Awaited<ReturnType<typeof loadProgress>>;
 
 function Empty({ icon, text }: { icon: Parameters<typeof Icon>[0]['name']; text: string }) {
   return (
-    <Card index={0} style={styles.empty}>
+    <Card style={styles.empty}>
       <Icon name={icon} size={28} />
       <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'center' }}>
         {text}
@@ -106,7 +104,7 @@ function ExercisesTab({ data }: { data: Data }) {
           <Chip key={e.id} label={e.name} selected={e.id === selected.id} onPress={() => setExerciseId(e.id)} />
         ))}
       </ScrollView>
-      <Card glow index={0} key={`${selected.id}-${metric}`}>
+      <Card key={`${selected.id}-${metric}`}>
         <Row style={styles.between}>
           <ThemedText type="caps">{metric === 'e1rm' ? '1RM estimé' : 'Charge max'}</ThemedText>
           <Pressable onPress={() => router.push(`/exercise/${selected.id}`)} hitSlop={8}>
@@ -138,7 +136,7 @@ function ExercisesTab({ data }: { data: Data }) {
         />
       </Card>
       <SectionTitle>Séances</SectionTitle>
-      <Card index={1} style={{ gap: 0 }}>
+      <Card style={{ gap: 0 }}>
         {[...series].reverse().map((p, i) => (
           <Row
             key={p.workoutId}
@@ -179,9 +177,7 @@ function MuscleBar({ ratio, zone, delay }: { ratio: number; zone: [number, numbe
         ]}
       />
       {ratio > 0 && (
-        <Animated.View style={[styles.bar, bar]}>
-          <LinearGradient colors={[Gold[1], theme.chart]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-        </Animated.View>
+        <Animated.View style={[styles.bar, { backgroundColor: theme.chart }, bar]} />
       )}
     </View>
   );
@@ -201,7 +197,7 @@ function MusclesTab({ data }: { data: Data }) {
   };
 
   return (
-    <Card glow index={0} key={week}>
+    <Card key={week}>
       <Row style={styles.between}>
         <IconButton icon="chevron.left" onPress={() => changeWeek(-1)} />
         <View style={{ alignItems: 'center' }}>
@@ -242,7 +238,7 @@ function RecordsTab({ data }: { data: Data }) {
         .map((e, i) => {
           const r = data.records.get(e.id)!;
           return (
-            <Card key={e.id} index={i} onPress={() => router.push(`/exercise/${e.id}`)}>
+            <Card key={e.id} onPress={() => router.push(`/exercise/${e.id}`)}>
               <Row style={styles.between}>
                 <Row style={{ flex: 1 }}>
                   <Icon name="trophy.fill" size={16} />
@@ -314,7 +310,7 @@ function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void })
 
   return (
     <>
-      <Card glow index={0}>
+      <Card>
         <ThemedText type="caps">Poids du jour</ThemedText>
         <Row>
           <Input
@@ -328,13 +324,13 @@ function BodyweightTab({ data, onChange }: { data: Data; onChange: () => void })
         </Row>
       </Card>
       {points.length >= 2 && (
-        <Card index={1} key={points.length}>
+        <Card key={points.length}>
           <ThemedText type="caps">Évolution</ThemedText>
           <LineChart points={points} format={(y) => `${y} ${data.unit}`} />
         </Card>
       )}
       {data.bodyweight.length > 0 && (
-        <Card index={2} style={{ gap: 0 }}>
+        <Card style={{ gap: 0 }}>
           {[...data.bodyweight].reverse().map((b, i) => (
             <Pressable key={b.id} onLongPress={() => remove(b.id, b.date)}>
               <Row style={[styles.listRow, i > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>

@@ -10,8 +10,8 @@ import { Button, Card, Screen } from '@/components/ui';
  */
 export function ErrorScreen({ error, retry }: ErrorBoundaryProps) {
   return (
-    <Screen title="Oups">
-      <Card glow index={0}>
+    <Screen>
+      <Card>
         <Icon name="exclamationmark.triangle.fill" size={26} />
         <ThemedText type="smallBold">Cet écran a rencontré une erreur.</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">

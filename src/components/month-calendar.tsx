@@ -1,17 +1,37 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
 import { IconButton } from '@/components/ui';
-import { Gold } from '@/constants/theme';
+import { RingColors } from '@/constants/theme';
 import { selectHaptic } from '@/haptics';
 import { useTheme } from '@/hooks/use-theme';
 import { dayKey } from '@/logic/stats';
 
 const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+const RING = 26;
+const RING_STROKE = 4;
 
-/** Monday-first month grid. Gym days are gold; today has a ring. */
+/** A day's small ring, as in Fitness's history: closed on gym days, a dim track otherwise. */
+function DayRing({ closed }: { closed: boolean }) {
+  const r = (RING - RING_STROKE) / 2;
+  return (
+    <Svg width={RING} height={RING}>
+      <Circle
+        cx={RING / 2}
+        cy={RING / 2}
+        r={r}
+        stroke={RingColors.days}
+        strokeOpacity={closed ? 1 : 0.22}
+        strokeWidth={RING_STROKE}
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/** Monday-first month grid with a ring per day. */
 export function MonthCalendar({
   month,
   today,
@@ -22,7 +42,7 @@ export function MonthCalendar({
 }: {
   /** Any timestamp inside the month to show. */
   month: number;
-  /** Today's day key, highlighted with a ring. */
+  /** Today's day key. */
   today: string;
   marked: Set<string>;
   selected: string | null;
@@ -47,25 +67,24 @@ export function MonthCalendar({
   return (
     <View style={styles.wrap}>
       <View style={styles.header}>
-        <IconButton icon="chevron.left" onPress={() => onChangeMonth(-1)} />
         <ThemedText type="subtitle" style={styles.title}>
           {title}
         </ThemedText>
-        <IconButton icon="chevron.right" onPress={() => onChangeMonth(1)} />
+        <View style={styles.arrows}>
+          <IconButton icon="chevron.left" onPress={() => onChangeMonth(-1)} />
+          <IconButton icon="chevron.right" onPress={() => onChangeMonth(1)} />
+        </View>
       </View>
       <View style={styles.grid}>
         {WEEKDAYS.map((w, i) => (
           <View key={`w${i}`} style={styles.weekday}>
-            <ThemedText type="caps" themeColor="textSecondary">
-              {w}
-            </ThemedText>
+            <ThemedText type="caps">{w}</ThemedText>
           </View>
         ))}
       </View>
-      <Animated.View key={title} entering={FadeIn.duration(300)} style={styles.grid}>
+      <Animated.View key={title} entering={FadeIn.duration(250)} style={styles.grid}>
         {cells.map((key, i) => {
           if (!key) return <View key={`e${i}`} style={styles.cell} />;
-          const isMarked = marked.has(key);
           const isSelected = key === selected;
           const isToday = key === today;
           const isFuture = key > today;
@@ -77,24 +96,17 @@ export function MonthCalendar({
                 selectHaptic();
                 onSelect(key);
               }}>
-              <View
-                style={[
-                  styles.day,
-                  isSelected && { borderColor: theme.accent, borderWidth: 1.5 },
-                  !isSelected && isToday && { borderColor: theme.hairline, borderWidth: 1 },
-                ]}>
-                {isMarked && (
-                  <LinearGradient colors={Gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fill} />
-                )}
+              <View style={[styles.number, isSelected && { backgroundColor: theme.accent }]}>
                 <ThemedText
-                  type="smallBold"
+                  type="caps"
                   style={{
-                    color: isMarked ? theme.onAccent : isFuture ? theme.backgroundSelected : theme.text,
-                    opacity: isMarked || isToday ? 1 : 0.75,
+                    color: isSelected ? theme.onAccent : isToday ? theme.accent : isFuture ? theme.backgroundSelected : theme.text,
+                    textTransform: 'none',
                   }}>
                   {Number(key.slice(8))}
                 </ThemedText>
               </View>
+              {!isFuture && <DayRing closed={marked.has(key)} />}
             </Pressable>
           );
         })}
@@ -106,10 +118,10 @@ export function MonthCalendar({
 const styles = StyleSheet.create({
   wrap: { gap: 6 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  title: { textTransform: 'capitalize', fontSize: 26 },
+  title: { textTransform: 'capitalize' },
+  arrows: { flexDirection: 'row', gap: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  weekday: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 4 },
-  cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
-  day: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  fill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, borderRadius: 19 },
+  weekday: { width: `${100 / 7}%`, alignItems: 'center', paddingVertical: 2 },
+  cell: { width: `${100 / 7}%`, height: 54, alignItems: 'center', justifyContent: 'flex-start', gap: 2, paddingTop: 2 },
+  number: { minWidth: 22, height: 20, borderRadius: 10, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center' },
 });

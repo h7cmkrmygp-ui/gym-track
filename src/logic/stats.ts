@@ -51,3 +51,20 @@ export function weeklyStreak(days: Set<string>, goal: number, now: number): numb
     streak++;
   }
 }
+
+/** Sets and minutes trained in the week (Monday to Sunday) containing `now`. */
+export function weekTotals(
+  workouts: { startedAt: number; endedAt: number | null; setCount: number }[],
+  now: number,
+): { sets: number; minutes: number } {
+  const from = weekStart(now).getTime();
+  const to = from + 7 * 86_400_000;
+  let sets = 0;
+  let minutes = 0;
+  for (const w of workouts) {
+    if (w.startedAt < from || w.startedAt >= to) continue;
+    sets += w.setCount;
+    if (w.endedAt !== null) minutes += Math.round((w.endedAt - w.startedAt) / 60_000);
+  }
+  return { sets, minutes };
+}

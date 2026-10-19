@@ -1,6 +1,6 @@
 import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
 
-import { DisplayFont, Fonts, ThemeColor } from '@/constants/theme';
+import { Fonts, RoundedFont, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
@@ -8,13 +8,15 @@ export type ThemedTextProps = TextProps & {
     | 'default'
     | 'small'
     | 'smallBold'
-    /** Small capitals, widely spaced: section labels. */
+    /** Small capitals in gray: the label above a metric (like "MOVE" in Fitness). */
     | 'caps'
-    /** Serif, 30: card titles, workout names. */
+    /** 22 bold: card and section titles. */
     | 'subtitle'
-    /** Serif, 40: screen titles. */
+    /** 34 bold: in-page large titles. */
     | 'title'
-    /** Serif, 56: the one big number of a card. */
+    /** 28 bold rounded: a metric value. */
+    | 'number'
+    /** 48 bold rounded: the one big number of a card. */
     | 'hero'
     | 'link'
     | 'linkPrimary'
@@ -28,9 +30,8 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   return (
     <Text
       style={[
-        { color: theme[themeColor ?? 'text'] },
+        { color: theme[themeColor ?? (type === 'caps' ? 'textSecondary' : 'text')] },
         styles[type],
-        type === 'caps' && !themeColor && { color: theme.accent, opacity: 0.75 },
         type === 'linkPrimary' && { color: theme.accent },
         style,
       ]}
@@ -40,15 +41,16 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 }
 
 const styles = StyleSheet.create({
-  default: { fontSize: 16, lineHeight: 22, fontWeight: 500 },
-  small: { fontSize: 14, lineHeight: 20, fontWeight: 500 },
-  smallBold: { fontSize: 14, lineHeight: 20, fontWeight: 700 },
-  caps: { fontSize: 11, lineHeight: 14, fontWeight: 700, letterSpacing: 1.8, textTransform: 'uppercase' },
-  subtitle: { fontFamily: DisplayFont.semibold, fontSize: 30, lineHeight: 34 },
-  title: { fontFamily: DisplayFont.semibold, fontSize: 40, lineHeight: 44 },
-  hero: { fontFamily: DisplayFont.semibold, fontSize: 56, lineHeight: 58 },
-  link: { lineHeight: 30, fontSize: 14 },
-  linkPrimary: { lineHeight: 30, fontSize: 14 },
+  default: { fontSize: 17, lineHeight: 22, fontWeight: 400 },
+  small: { fontSize: 15, lineHeight: 20, fontWeight: 400 },
+  smallBold: { fontSize: 15, lineHeight: 20, fontWeight: 600 },
+  caps: { fontSize: 13, lineHeight: 16, fontWeight: 600, letterSpacing: 0.2, textTransform: 'uppercase' },
+  subtitle: { fontSize: 22, lineHeight: 28, fontWeight: 700 },
+  title: { fontSize: 34, lineHeight: 41, fontWeight: 700 },
+  number: { fontFamily: RoundedFont, fontSize: 28, lineHeight: 32, fontWeight: 700, fontVariant: ['tabular-nums'] },
+  hero: { fontFamily: RoundedFont, fontSize: 48, lineHeight: 52, fontWeight: 700, fontVariant: ['tabular-nums'] },
+  link: { lineHeight: 30, fontSize: 15 },
+  linkPrimary: { lineHeight: 30, fontSize: 15 },
   code: {
     fontFamily: Fonts.mono,
     fontWeight: Platform.select({ android: 700 }) ?? 500,

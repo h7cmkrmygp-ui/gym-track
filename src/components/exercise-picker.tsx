@@ -1,14 +1,11 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Backdrop } from '@/components/backdrop';
 import { Icon } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Chip, IconButton, Input, Row } from '@/components/ui';
-import { Gold } from '@/constants/theme';
 import { selectHaptic } from '@/haptics';
 import { MUSCLE_GROUPS } from '@/data/exercises.fr';
 import { createExercise, listExercises, type Exercise } from '@/db/exercises';
@@ -85,7 +82,6 @@ export function ExercisePicker({
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={close}>
       <View style={[styles.sheet, { backgroundColor: theme.background, paddingBottom: insets.bottom + 8 }]}>
-        <Backdrop />
         <Row style={styles.header}>
           <ThemedText type="subtitle" style={{ flex: 1 }}>
             Exercices
@@ -96,7 +92,7 @@ export function ExercisePicker({
         {form ? (
           <Animated.View
             entering={FadeInDown.duration(250)}
-            style={[styles.form, { backgroundColor: theme.backgroundElement, borderColor: theme.hairline }]}>
+            style={[styles.form, { backgroundColor: theme.backgroundElement }]}>
             <ThemedText type="caps">Nouvel exercice</ThemedText>
             <Input
               placeholder="Nom (ex. Développé machine)"
@@ -159,12 +155,12 @@ export function ExercisePicker({
                 <ThemedText style={{ flex: 1, color: rank >= 0 ? theme.accent : theme.text }}>{item.name}</ThemedText>
                 <View style={[styles.tick, { borderColor: rank >= 0 ? 'transparent' : theme.hairline }]}>
                   {rank >= 0 && (
-                    <Animated.View entering={ZoomIn.springify().damping(12)} style={StyleSheet.absoluteFill}>
-                      <LinearGradient colors={Gold} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tickFill}>
-                        <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
-                          {rank + 1}
-                        </ThemedText>
-                      </LinearGradient>
+                    <Animated.View
+                      entering={ZoomIn.springify().damping(12)}
+                      style={[styles.tickFill, { backgroundColor: theme.accent }]}>
+                      <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
+                        {rank + 1}
+                      </ThemedText>
                     </Animated.View>
                   )}
                 </View>
@@ -190,12 +186,12 @@ export function ExercisePicker({
 const styles = StyleSheet.create({
   sheet: { flex: 1, padding: 18, gap: 12 },
   header: { justifyContent: 'space-between' },
-  form: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 10 },
+  form: { borderRadius: 14, padding: 14, gap: 10 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   sectionHeader: { marginTop: 18, marginBottom: 6 },
   item: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1 },
-  tick: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  tickFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tick: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  tickFill: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   search: { paddingLeft: 36 },
   searchIcon: { position: 'absolute', left: 13, top: 14 },
 });

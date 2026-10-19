@@ -36,7 +36,7 @@ export default function HistoryScreen() {
   const [month, setMonth] = useState(() => Date.now());
   const [selected, setSelected] = useState<string | null>(() => dayKey(Date.now()));
 
-  if (!data) return <Screen title="Historique">{null}</Screen>;
+  if (!data) return <Screen>{null}</Screen>;
 
   const monthPrefix = dayKey(month).slice(0, 7);
   const daysThisMonth = [...data.days].filter((d) => d.startsWith(monthPrefix)).length;
@@ -53,8 +53,8 @@ export default function HistoryScreen() {
   };
 
   return (
-    <Screen eyebrow="Tes jours de gym" title="Historique">
-      <Card glow index={0}>
+    <Screen>
+      <Card>
         <MonthCalendar
           month={month}
           today={data.today}
@@ -95,7 +95,7 @@ export default function HistoryScreen() {
 
       <SectionTitle>Dernières séances</SectionTitle>
       {data.workouts.length === 0 && (
-        <Card index={1} style={styles.empty}>
+        <Card style={styles.empty}>
           <Icon name="figure.strengthtraining.traditional" size={28} />
           <ThemedText type="small" themeColor="textSecondary">
             Aucune séance pour l&apos;instant.
@@ -103,7 +103,7 @@ export default function HistoryScreen() {
         </Card>
       )}
       {data.workouts.slice(0, 30).map((w, i) => (
-        <Card key={w.id} index={Math.min(i + 1, 8)} onPress={() => router.push(`/workout/${w.id}`)}>
+        <Card key={w.id} onPress={() => router.push(`/workout/${w.id}`)}>
           <WorkoutRow workout={w} showDate />
         </Card>
       ))}
@@ -115,7 +115,7 @@ function WorkoutRow({ workout, showDate }: { workout: WorkoutSummary; showDate?:
   const theme = useTheme();
   const content = (
     <Row style={{ gap: 12 }}>
-      <View style={[styles.iconTile, { borderColor: theme.hairline }]}>
+      <View style={[styles.iconTile, { backgroundColor: theme.backgroundSelected }]}>
         <Icon name="dumbbell.fill" size={15} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, marginVertical: 2 },
   between: { justifyContent: 'space-between' },
   empty: { alignItems: 'center', paddingVertical: 28, gap: 10 },
-  iconTile: { width: 36, height: 36, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconTile: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   date: { textTransform: 'capitalize' },
   inlineRow: { padding: 12 },
 });

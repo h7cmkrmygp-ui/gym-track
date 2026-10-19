@@ -8,6 +8,9 @@ export type Settings = {
   restDefaultS: number;
   /** Gym days per week that keep the streak going. */
   weeklyGoal: number;
+  /** Weekly goals of the other two activity rings. */
+  setsGoal: number;
+  minutesGoal: number;
   /** Sunday evening notification with the week's summary. */
   weeklySummary: boolean;
   /** Nudge after this many days without the gym; 0 turns it off. */
@@ -24,6 +27,8 @@ const DEFAULTS: Settings = {
   unit: 'lbs',
   restDefaultS: 90,
   weeklyGoal: 3,
+  setsGoal: 60,
+  minutesGoal: 180,
   weeklySummary: true,
   inactivityDays: 3,
   lastSnapshotAt: null,

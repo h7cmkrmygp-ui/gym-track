@@ -1,4 +1,4 @@
-import { attendanceDays, dayKey, daysThisWeek, weeklyStreak } from '../stats';
+import { attendanceDays, dayKey, daysThisWeek, weeklyStreak, weekTotals } from '../stats';
 import type { Visit } from '../visits';
 
 const MIN = 60_000;
@@ -55,5 +55,26 @@ describe('weekly stats', () => {
   test('a missed week ends the streak', () => {
     const d = days('2026-09-28', '2026-09-30', '2026-10-02', '2026-10-05');
     expect(weeklyStreak(d, 3, now)).toBe(0);
+  });
+});
+
+describe('weekTotals', () => {
+  const MIN = 60_000;
+  const workout = (day: number, minutes: number, setCount: number) => ({
+    startedAt: at(10, day),
+    endedAt: at(10, day) + minutes * MIN,
+    setCount,
+  });
+
+  test('adds up this week’s sets and minutes, from Monday', () => {
+    const totals = weekTotals([workout(9, 50, 20), workout(12, 45, 18), workout(14, 61, 22)], at(10, 15));
+    expect(totals).toEqual({ sets: 40, minutes: 106 });
+  });
+
+  test('ignores a workout with no end', () => {
+    expect(weekTotals([{ startedAt: at(10, 12), endedAt: null, setCount: 5 }], at(10, 15))).toEqual({
+      sets: 5,
+      minutes: 0,
+    });
   });
 });

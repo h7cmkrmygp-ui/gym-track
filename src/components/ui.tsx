@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useState, type ReactNode, type RefObject } from 'react';
 import {
   Pressable,
@@ -12,13 +11,11 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
-import { Backdrop } from '@/components/backdrop';
 import { Icon, type SFSymbol } from '@/components/icon';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Gold, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { selectHaptic, tapHaptic } from '@/haptics';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -50,83 +47,80 @@ export function PressableScale({
   );
 }
 
-/** Scrollable page on the black and champagne backdrop. Tab screens pass a `title`. */
+/**
+ * Scrollable page on a black background. The title is the native large title of the
+ * navigation bar, which shrinks as the page scrolls; `eyebrow` is the small gray line
+ * above the content (e.g. today's date, as in Fitness).
+ */
 export function Screen({
-  title,
   eyebrow,
   children,
   scrollRef,
 }: {
-  title?: string;
-  /** Small capitals above the title, e.g. today's date. */
   eyebrow?: string;
   children: ReactNode;
   /** To scroll the page from the screen, e.g. to the exercise in progress. */
   scrollRef?: RefObject<ScrollView | null>;
 }) {
-  const insets = useSafeAreaInsets();
+  const theme = useTheme();
   return (
-    <View style={styles.page}>
-      <Backdrop />
-      <ScrollView
-        ref={scrollRef}
-        // Tab screens pad for the status bar themselves; stack screens let iOS account for the header.
-        contentInsetAdjustmentBehavior={title ? 'never' : 'automatic'}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        contentContainerStyle={[styles.screen, { paddingTop: title ? insets.top + Spacing.four : Spacing.three }]}>
-        {(eyebrow || title) && (
-          <Animated.View entering={FadeInDown.duration(500)} style={styles.header}>
-            {eyebrow && <ThemedText type="caps">{eyebrow}</ThemedText>}
-            {title && <ThemedText type="title">{title}</ThemedText>}
-          </Animated.View>
-        )}
-        {children}
-      </ScrollView>
-    </View>
+    <ScrollView
+      ref={scrollRef}
+      style={{ backgroundColor: theme.background }}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      contentContainerStyle={styles.screen}>
+      {eyebrow && (
+        <ThemedText type="caps" style={styles.eyebrow}>
+          {eyebrow}
+        </ThemedText>
+      )}
+      {children}
+    </ScrollView>
   );
 }
 
 /**
- * Dark card with a thin champagne edge. `index` staggers its entrance; `glow` adds the
- * golden sheen used on each screen's main card; `onPress` makes the whole card touchable.
+ * Gray rounded card, as in Fitness. With `title` it gets a header line; with `onPress`
+ * the whole card is touchable and the header shows a chevron.
  */
 export function Card({
   children,
   style,
   onLayout,
-  index,
-  glow,
+  title,
+  titleColor,
   onPress,
+  flex,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   onLayout?: (e: LayoutChangeEvent) => void;
-  index?: number;
-  glow?: boolean;
+  title?: string;
+  titleColor?: string;
   onPress?: () => void;
+  /** Share a row equally with sibling cards. */
+  flex?: boolean;
 }) {
   const theme = useTheme();
   const body = (
     <>
-      {glow && (
-        <LinearGradient
-          colors={['rgba(227, 211, 181, 0.13)', 'rgba(227, 211, 181, 0)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.7, y: 0.8 }}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+      {title && (
+        <Row style={styles.cardHeader}>
+          <ThemedText type="smallBold" style={[{ flex: 1 }, titleColor ? { color: titleColor } : null]}>
+            {title}
+          </ThemedText>
+          {onPress && <Icon name="chevron.right" size={13} color={theme.textSecondary} />}
+        </Row>
       )}
       {children}
     </>
   );
-  const cardStyle = [styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.hairline }, style];
+  const cardStyle = [styles.card, { backgroundColor: theme.backgroundElement }, flex && styles.flex, style];
 
   return (
-    <Animated.View
-      entering={index === undefined ? undefined : FadeInDown.delay(index * 60).duration(450)}
-      onLayout={onLayout}>
+    <View onLayout={onLayout} style={flex && styles.flex}>
       {onPress ? (
         <PressableScale
           style={cardStyle}
@@ -139,13 +133,23 @@ export function Card({
       ) : (
         <View style={cardStyle}>{body}</View>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
+/** Small gray header above a grouped list, as in iOS Settings. */
+export function GroupHeader({ children }: { children: ReactNode }) {
+  return (
+    <ThemedText type="caps" style={styles.groupHeader}>
+      {children}
+    </ThemedText>
+  );
+}
+
+/** Section heading between cards, as in Fitness ("Tendances", "Séances"…). */
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <ThemedText type="caps" style={styles.sectionTitle}>
+    <ThemedText type="subtitle" style={styles.sectionTitle}>
       {children}
     </ThemedText>
   );
@@ -163,7 +167,13 @@ type ButtonProps = {
 
 export function Button({ label, onPress, variant = 'primary', icon, small, disabled, style }: ButtonProps) {
   const theme = useTheme();
-  const fg = { primary: theme.onAccent, secondary: theme.text, ghost: theme.accent, danger: theme.danger }[variant];
+  const bg = {
+    primary: theme.accent,
+    secondary: theme.backgroundSelected,
+    ghost: 'transparent',
+    danger: small ? 'transparent' : theme.backgroundElement,
+  }[variant];
+  const fg = { primary: theme.onAccent, secondary: theme.accent, ghost: theme.accent, danger: theme.danger }[variant];
   return (
     <PressableScale
       onPress={() => {
@@ -171,30 +181,16 @@ export function Button({ label, onPress, variant = 'primary', icon, small, disab
         onPress();
       }}
       disabled={disabled}
-      style={[
-        styles.button,
-        small && styles.buttonSmall,
-        variant === 'secondary' && { backgroundColor: theme.backgroundSelected, borderColor: theme.hairline, borderWidth: 1 },
-        { opacity: disabled ? 0.4 : 1 },
-        style,
-      ]}>
-      {variant === 'primary' && (
-        <LinearGradient
-          colors={Gold}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[StyleSheet.absoluteFill, { borderRadius: small ? 10 : Radius.control }]}
-        />
-      )}
+      style={[styles.button, small && styles.buttonSmall, { backgroundColor: bg, opacity: disabled ? 0.4 : 1 }, style]}>
       {icon && <Icon name={icon} size={small ? 13 : 16} color={fg} />}
-      <ThemedText type={small ? 'smallBold' : 'default'} style={{ color: fg, fontWeight: 700 }}>
+      <ThemedText type={small ? 'smallBold' : 'default'} style={{ color: fg, fontWeight: 600 }}>
         {label}
       </ThemedText>
     </PressableScale>
   );
 }
 
-/** Small round button holding one icon (reorder, remove, previous/next). */
+/** Small round gray button holding one icon (reorder, remove, previous/next). */
 export function IconButton({
   icon,
   onPress,
@@ -215,13 +211,13 @@ export function IconButton({
         tapHaptic();
         onPress();
       }}
-      style={[styles.iconButton, { borderColor: theme.hairline, opacity: disabled ? 0.3 : 1 }]}>
+      style={[styles.iconButton, { backgroundColor: theme.backgroundSelected, opacity: disabled ? 0.3 : 1 }]}>
       <Icon name={icon} size={12} color={color} />
     </PressableScale>
   );
 }
 
-/** Pill for quick actions and filters. */
+/** Capsule for quick actions and filters. */
 export function Chip({
   label,
   icon,
@@ -234,26 +230,23 @@ export function Chip({
   onPress: () => void;
 }) {
   const theme = useTheme();
+  const fg = selected ? theme.onAccent : theme.text;
   return (
     <PressableScale
       onPress={() => {
         selectHaptic();
         onPress();
       }}
-      style={[
-        styles.chip,
-        { borderColor: selected ? theme.accent : theme.hairline },
-        { backgroundColor: selected ? 'rgba(227, 211, 181, 0.14)' : theme.backgroundElement },
-      ]}>
-      {icon && <Icon name={icon} size={13} color={selected ? theme.accent : theme.textSecondary} />}
-      <ThemedText type="small" style={{ color: selected ? theme.accent : theme.text }}>
+      style={[styles.chip, { backgroundColor: selected ? theme.accent : theme.backgroundSelected }]}>
+      {icon && <Icon name={icon} size={13} color={selected ? theme.onAccent : theme.accent} />}
+      <ThemedText type="small" style={{ color: fg, fontWeight: 600 }}>
         {label}
       </ThemedText>
     </PressableScale>
   );
 }
 
-/** Tabs with a sliding pill under the selected one. */
+/** iOS segmented control, with the selected segment sliding into place. */
 export function Segmented<T extends string>({
   options,
   value,
@@ -263,20 +256,17 @@ export function Segmented<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
-  const theme = useTheme();
   const [width, setWidth] = useState(0);
-  const segment = options.length ? (width - 6) / options.length : 0;
+  const segment = options.length ? (width - 4) / options.length : 0;
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const pill = useAnimatedStyle(() => ({
     width: segment,
-    transform: [{ translateX: withSpring(index * segment, { damping: 20, stiffness: 220 }) }],
+    transform: [{ translateX: withSpring(index * segment, { damping: 22, stiffness: 260 }) }],
   }));
 
   return (
-    <View
-      style={[styles.segmented, { backgroundColor: theme.backgroundElement, borderColor: theme.hairline }]}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-      {width > 0 && <Animated.View style={[styles.segmentPill, { backgroundColor: theme.backgroundSelected }, pill]} />}
+    <View style={styles.segmented} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 && <Animated.View style={[styles.segmentPill, pill]} />}
       {options.map((o) => (
         <Pressable
           key={o.value}
@@ -285,7 +275,7 @@ export function Segmented<T extends string>({
             onChange(o.value);
           }}
           style={styles.segment}>
-          <ThemedText type="smallBold" style={{ color: o.value === value ? theme.accent : theme.textSecondary }}>
+          <ThemedText type="caps" style={styles.segmentLabel}>
             {o.label}
           </ThemedText>
         </Pressable>
@@ -294,7 +284,7 @@ export function Segmented<T extends string>({
   );
 }
 
-/** A "−  value  +" control for small integers (sets, reps, seconds, meters). */
+/** iOS-style stepper: the value, then a "− | +" pill. */
 export function Stepper({
   value,
   onChange,
@@ -318,21 +308,26 @@ export function Stepper({
   };
   return (
     <View style={styles.stepper}>
-      <PressableScale
-        hitSlop={8}
-        onPress={() => change(Math.max(min, value - step))}
-        style={[styles.stepperButton, { backgroundColor: theme.backgroundSelected, borderColor: theme.hairline }]}>
-        <Icon name="minus" size={12} />
-      </PressableScale>
-      <ThemedText type="smallBold" style={styles.stepperValue}>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.stepperValue}>
         {format(value)}
       </ThemedText>
-      <PressableScale
-        hitSlop={8}
-        onPress={() => change(Math.min(max, value + step))}
-        style={[styles.stepperButton, { backgroundColor: theme.backgroundSelected, borderColor: theme.hairline }]}>
-        <Icon name="plus" size={12} />
-      </PressableScale>
+      <View style={[styles.stepperPill, { backgroundColor: theme.backgroundSelected }]}>
+        <Pressable
+          hitSlop={6}
+          disabled={value <= min}
+          onPress={() => change(Math.max(min, value - step))}
+          style={({ pressed }) => [styles.stepperHalf, { opacity: value <= min ? 0.3 : pressed ? 0.5 : 1 }]}>
+          <Icon name="minus" size={13} color={theme.text} />
+        </Pressable>
+        <View style={[styles.stepperDivider, { backgroundColor: theme.hairline }]} />
+        <Pressable
+          hitSlop={6}
+          disabled={value >= max}
+          onPress={() => change(Math.min(max, value + step))}
+          style={({ pressed }) => [styles.stepperHalf, { opacity: value >= max ? 0.3 : pressed ? 0.5 : 1 }]}>
+          <Icon name="plus" size={13} color={theme.text} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -343,15 +338,12 @@ export function Input(props: TextInputProps) {
     <TextInput
       placeholderTextColor={theme.textSecondary}
       selectionColor={theme.accent}
+      keyboardAppearance="dark"
       // iOS number pads have no key to close them; React Native adds an "OK" bar above
       // them with this label (and only for number pads).
       inputAccessoryViewButtonLabel="OK"
       {...props}
-      style={[
-        styles.input,
-        { color: theme.text, backgroundColor: theme.backgroundSelected, borderColor: theme.hairline },
-        props.style,
-      ]}
+      style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundSelected }, props.style]}
     />
   );
 }
@@ -361,24 +353,21 @@ export function Row({ children, style }: { children: ReactNode; style?: StylePro
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1 },
   screen: {
     paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
     paddingBottom: BottomTabInset + Spacing.six,
-    gap: Spacing.three,
+    gap: 12,
     width: '100%',
     maxWidth: MaxContentWidth,
     alignSelf: 'center',
   },
-  header: { gap: 2, marginBottom: Spacing.one },
-  card: {
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    padding: Spacing.three + 2,
-    gap: Spacing.two + 2,
-    overflow: 'hidden',
-  },
-  sectionTitle: { marginTop: Spacing.two },
+  eyebrow: { marginTop: -4, marginBottom: 2 },
+  card: { borderRadius: Radius.card, padding: Spacing.three, gap: 10, overflow: 'hidden' },
+  cardHeader: { marginBottom: 2 },
+  flex: { flex: 1 },
+  sectionTitle: { marginTop: Spacing.three },
+  groupHeader: { marginTop: Spacing.three, marginBottom: -4, marginLeft: Spacing.three },
   button: {
     flexDirection: 'row',
     gap: 8,
@@ -387,32 +376,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
   },
-  buttonSmall: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, gap: 5 },
-  iconButton: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  buttonSmall: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, gap: 5 },
+  iconButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderRadius: Radius.pill,
-    borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  segmented: { flexDirection: 'row', borderRadius: 12, padding: 3, borderWidth: 1 },
-  segmentPill: { position: 'absolute', top: 3, bottom: 3, left: 3, borderRadius: 9 },
-  segment: { flex: 1, alignItems: 'center', paddingVertical: 8 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  stepperButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  segmented: {
+    flexDirection: 'row',
+    borderRadius: 9,
+    padding: 2,
+    backgroundColor: 'rgba(118, 118, 128, 0.24)',
   },
-  stepperValue: { minWidth: 48, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  input: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 11, fontSize: 16 },
+  segmentPill: {
+    position: 'absolute',
+    top: 2,
+    bottom: 2,
+    left: 2,
+    borderRadius: 7,
+    backgroundColor: '#636366',
+  },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 7 },
+  segmentLabel: { color: '#FFFFFF', textTransform: 'none', fontSize: 13 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepperValue: { minWidth: 40, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  stepperPill: { flexDirection: 'row', alignItems: 'center', borderRadius: 8, height: 32 },
+  stepperHalf: { width: 46, height: 32, alignItems: 'center', justifyContent: 'center' },
+  stepperDivider: { width: 1, height: 18 },
+  input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 17 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

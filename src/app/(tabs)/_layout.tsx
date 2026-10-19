@@ -5,15 +5,15 @@ import { useTheme } from '@/hooks/use-theme';
 export default function TabLayout() {
   const theme = useTheme();
 
-  // No background color: on iOS 26 the tab bar stays Liquid Glass, floating over the backdrop.
+  // No background color: on iOS 26 the tab bar stays Liquid Glass, as in Apple's apps.
   return (
     <NativeTabs
       tintColor={theme.accent}
       indicatorColor={theme.backgroundElement}
       labelStyle={{ selected: { color: theme.accent } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Accueil</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf={{ default: 'house', selected: 'house.fill' }} md="home" />
+      <NativeTabs.Trigger name="(home)">
+        <NativeTabs.Trigger.Label>Résumé</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf={{ default: 'circle.circle', selected: 'circle.circle.fill' }} md="donut_large" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="history">
         <NativeTabs.Trigger.Label>Historique</NativeTabs.Trigger.Label>

@@ -88,7 +88,7 @@ export function LineChart({
   return (
     <View>
       <View style={styles.header}>
-        <ThemedText type="subtitle">{format(points[shown].y)}</ThemedText>
+        <ThemedText type="number">{format(points[shown].y)}</ThemedText>
         <ThemedText type="caps" themeColor="textSecondary">
           {shortDate(points[shown].x)}
         </ThemedText>

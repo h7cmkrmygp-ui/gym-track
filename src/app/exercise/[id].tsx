@@ -50,7 +50,7 @@ export default function ExerciseScreen() {
       <Stack.Screen options={{ title: exercise?.name ?? 'Exercice' }} />
       <Screen>
         {sessions.length === 0 ? (
-          <Card index={0} style={styles.empty}>
+          <Card style={styles.empty}>
             <Icon name="chart.line.uptrend.xyaxis" size={26} />
             <ThemedText type="small" themeColor="textSecondary">
               Pas encore de séance terminée avec cet exercice.
@@ -59,7 +59,7 @@ export default function ExerciseScreen() {
         ) : (
           <>
             {record && (
-              <Card glow index={0}>
+              <Card>
                 <Row style={styles.recordRow}>
                   <View style={{ flex: 1 }}>
                     <ThemedText type="caps">Charge max</ThemedText>
@@ -81,7 +81,7 @@ export default function ExerciseScreen() {
             )}
 
             {isPlateau(series) && (
-              <Card index={1}>
+              <Card>
                 <Row style={{ alignItems: 'flex-start' }}>
                   <Icon name="exclamationmark.triangle.fill" size={15} />
                   <ThemedText type="small" style={{ flex: 1 }}>
@@ -93,7 +93,7 @@ export default function ExerciseScreen() {
             )}
 
             {series.length >= 2 && (
-              <Card index={2} key={metric}>
+              <Card key={metric}>
                 <LineChart
                   points={series.map((p) => ({
                     x: p.at,
@@ -114,7 +114,7 @@ export default function ExerciseScreen() {
 
             <SectionTitle>Dernières séances</SectionTitle>
             {sessions.slice(0, 20).map((s, i) => (
-              <Card key={s.workoutId} index={Math.min(i + 3, 8)}>
+              <Card key={s.workoutId}>
                 <Row style={styles.between}>
                   <ThemedText type="smallBold">{s.workoutName}</ThemedText>
                   <ThemedText type="caps" themeColor="textSecondary">
@@ -123,7 +123,7 @@ export default function ExerciseScreen() {
                 </Row>
                 <View style={styles.sets}>
                   {s.sets.map((set, j) => (
-                    <View key={j} style={[styles.setPill, { borderColor: theme.hairline }]}>
+                    <View key={j} style={[styles.setPill, { backgroundColor: theme.backgroundSelected }]}>
                       <ThemedText type="small" style={{ fontVariant: ['tabular-nums'] }}>
                         {toDisplay(set.weightKg, unit)} × {set.reps}
                       </ThemedText>
@@ -145,5 +145,5 @@ const styles = StyleSheet.create({
   recordRow: { gap: 16 },
   vDivider: { width: 1, alignSelf: 'stretch' },
   sets: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  setPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  setPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
 });
