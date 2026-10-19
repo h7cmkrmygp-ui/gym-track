@@ -16,6 +16,8 @@ export type Settings = {
   lastSnapshotAt: number | null;
   /** Last backup exported off the phone (share sheet). */
   lastExportAt: number | null;
+  /** True from launch until the app has stayed open a few seconds: still true means it crashed. */
+  launchPending: boolean;
 };
 
 const DEFAULTS: Settings = {
@@ -26,6 +28,7 @@ const DEFAULTS: Settings = {
   inactivityDays: 3,
   lastSnapshotAt: null,
   lastExportAt: null,
+  launchPending: false,
 };
 
 export async function getSettings(): Promise<Settings> {

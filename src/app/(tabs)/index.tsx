@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { EXPORT_REMINDER_DAYS, shareBackup } from '@/backup';
 import { ThemedText } from '@/components/themed-text';
@@ -7,7 +7,14 @@ import { Button, Card, Row, Screen, SectionTitle } from '@/components/ui';
 import { currentVisit, listVisits, manualCheckIn } from '@/db/gyms';
 import { getSettings } from '@/db/settings';
 import { createPplPreset, listTemplates } from '@/db/templates';
-import { getActiveWorkout, lastRotationTemplateId, listFinishedWorkouts, startWorkout } from '@/db/workouts';
+import {
+  deleteWorkout,
+  finishWorkout,
+  getActiveWorkout,
+  lastRotationTemplateId,
+  listFinishedWorkouts,
+  startWorkout,
+} from '@/db/workouts';
 import { getGeofenceStatus } from '@/geofence/regions';
 import { useFocusData } from '@/hooks/use-focus-data';
 import { useTheme } from '@/hooks/use-theme';
@@ -138,6 +145,45 @@ export default function HomeScreen() {
             Commencée à {time(data.active.startedAt)}
           </ThemedText>
           <Button label="Reprendre" onPress={() => router.push(`/workout/${data.active!.id}`)} />
+          <Row>
+            <Button
+              label="Terminer"
+              variant="secondary"
+              small
+              style={{ flex: 1 }}
+              onPress={() =>
+                Alert.alert('Terminer la séance ?', 'Seules les séries cochées sont gardées.', [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Terminer',
+                    onPress: async () => {
+                      await finishWorkout(data.active!.id);
+                      reload();
+                    },
+                  },
+                ])
+              }
+            />
+            <Button
+              label="Abandonner"
+              variant="danger"
+              small
+              style={{ flex: 1 }}
+              onPress={() =>
+                Alert.alert('Abandonner la séance ?', 'Toutes ses séries seront effacées.', [
+                  { text: 'Annuler', style: 'cancel' },
+                  {
+                    text: 'Abandonner',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await deleteWorkout(data.active!.id);
+                      reload();
+                    },
+                  },
+                ])
+              }
+            />
+          </Row>
         </Card>
       ) : data.templates.length === 0 ? (
         <Card>

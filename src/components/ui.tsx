@@ -1,8 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
 import {
-  InputAccessoryView,
-  Keyboard,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -46,7 +43,6 @@ export function Screen({
       ]}>
       {title && <ThemedText type="subtitle">{title}</ThemedText>}
       {children}
-      <KeyboardDoneBar />
     </ScrollView>
   );
 }
@@ -175,33 +171,17 @@ export function Stepper({
   );
 }
 
-const NUMERIC_KEYBOARDS = new Set(['number-pad', 'decimal-pad', 'numeric']);
-const KEYBOARD_DONE_ID = 'keyboard-done';
-
 export function Input(props: TextInputProps) {
   const theme = useTheme();
-  // iOS number pads have no key to close them: they get the "OK" bar from <Screen>.
-  const numeric = Platform.OS === 'ios' && NUMERIC_KEYBOARDS.has(props.keyboardType ?? '');
   return (
     <TextInput
       placeholderTextColor={theme.textSecondary}
-      inputAccessoryViewID={numeric ? KEYBOARD_DONE_ID : undefined}
+      // iOS number pads have no key to close them; React Native adds an "OK" bar above
+      // them with this label (and only for number pads).
+      inputAccessoryViewButtonLabel="OK"
       {...props}
       style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundSelected }, props.style]}
     />
-  );
-}
-
-/** "OK" bar shown above number pads. Rendered once per screen by <Screen>. */
-function KeyboardDoneBar() {
-  const theme = useTheme();
-  if (Platform.OS !== 'ios') return null;
-  return (
-    <InputAccessoryView nativeID={KEYBOARD_DONE_ID}>
-      <View style={[styles.keyboardBar, { backgroundColor: theme.backgroundElement }]}>
-        <Button label="OK" small onPress={Keyboard.dismiss} />
-      </View>
-    </InputAccessoryView>
   );
 }
 
@@ -234,6 +214,5 @@ const styles = StyleSheet.create({
   stepperButton: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   stepperValue: { minWidth: 44, textAlign: 'center' },
   input: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  keyboardBar: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: Spacing.three, paddingVertical: 6 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
 });

@@ -9,6 +9,7 @@ import { AppState } from 'react-native';
 import { snapshotIfDue } from '@/backup';
 import { Colors } from '@/constants/theme';
 import { getDb } from '@/db/client';
+import { getSettings, setSetting } from '@/db/settings';
 import { getActiveWorkout } from '@/db/workouts';
 import { syncGeofences } from '@/geofence/regions';
 import { endRestActivity } from '@/live-activity';
@@ -29,6 +30,11 @@ const navigationTheme = {
   },
 };
 
+export { ErrorScreen as ErrorBoundary } from '@/components/error-screen';
+
+/** A launch counts as successful once the app has stayed open this long. */
+const LAUNCH_OK_AFTER_MS = 10_000;
+
 export default function RootLayout() {
   useEffect(() => {
     getDb()
@@ -39,10 +45,14 @@ export default function RootLayout() {
           await handleNotificationResponse(launch);
           await Notifications.clearLastNotificationResponseAsync();
         } else {
-          // …otherwise reopening it goes straight back to an unfinished workout.
+          // …otherwise reopening it goes straight back to an unfinished workout, unless the
+          // previous launch crashed early: then it stays on the home screen to avoid a crash loop.
+          const { launchPending } = await getSettings();
           const active = await getActiveWorkout();
-          if (active) router.push(`/workout/${active.id}`);
+          if (active && !launchPending) router.push(`/workout/${active.id}`);
         }
+        await setSetting('launchPending', true);
+        setTimeout(() => setSetting('launchPending', false).catch(() => {}), LAUNCH_OK_AFTER_MS);
         // A rest timer does not survive a relaunch; neither should its Live Activity.
         await endRestActivity();
         await Promise.all([syncGeofences(), refreshWidget(), scheduleTimedNotifications()]);

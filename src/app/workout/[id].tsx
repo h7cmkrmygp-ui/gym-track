@@ -49,6 +49,8 @@ async function loadWorkout(workoutId: number) {
   return { detail, settings, records };
 }
 
+export { ErrorScreen as ErrorBoundary } from '@/components/error-screen';
+
 export default function WorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const workoutId = Number(id);
