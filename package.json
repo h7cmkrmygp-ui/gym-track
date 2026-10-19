@@ -69,6 +69,22 @@
     ],
     "setupFiles": [
       "<rootDir>/jest.setup.js"
-    ]
+    ],
+    "transform": {
+      "\\.[jt]sx?$": [
+        "babel-jest",
+        {
+          "presets": [
+            "babel-preset-expo"
+          ],
+          "caller": {
+            "name": "metro",
+            "bundler": "jest",
+            "platform": "ios",
+            "supportsReactCompiler": true
+          }
+        }
+      ]
+    }
   }
 }

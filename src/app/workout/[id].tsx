@@ -236,12 +236,16 @@ function ExerciseCard({
 }) {
   const theme = useTheme();
   const [plateauHidden, setPlateauHidden] = useState(false);
+  // Read through `?.`: the React Compiler checks memo dependencies on every render, so a `plateau!.deloadKg`
+  // inside the alert would be read even when there is no plateau, and crash.
+  const deloadKg = exercise.plateau?.deloadKg ?? null;
   const showPlateau =
-    active && !plateauHidden && exercise.plateau !== null && exercise.sets.some((s) => s.completedAt === null);
+    active && !plateauHidden && deloadKg !== null && exercise.sets.some((s) => s.completedAt === null);
   const allDone = exercise.sets.length > 0 && exercise.sets.every((s) => s.completedAt !== null);
 
   const applyDeload = async () => {
-    await setRemainingWeight(workoutId, exercise.exerciseId, exercise.plateau!.deloadKg);
+    if (deloadKg === null) return;
+    await setRemainingWeight(workoutId, exercise.exerciseId, deloadKg);
     setPlateauHidden(true);
     onChange();
   };
@@ -303,7 +307,7 @@ function ExerciseCard({
             <ThemedText type="small" style={{ flex: 1 }}>
               Pas de progrès depuis 3 séances. Un deload à{' '}
               <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                {formatWeight(exercise.plateau!.deloadKg, unit)}
+                {formatWeight(deloadKg ?? 0, unit)}
               </ThemedText>{' '}
               (−10 %) aide souvent à repartir.
             </ThemedText>

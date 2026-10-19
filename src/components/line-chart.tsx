@@ -71,7 +71,8 @@ export function LineChart({
   const animatedLine = useAnimatedProps(() => ({ strokeDashoffset: length * (1 - progress.value) }));
 
   if (points.length === 0) return null;
-  const shown = selected ?? points.length - 1;
+  // The scrubbed index can outlive its data when the chart switches to a shorter series.
+  const shown = selected !== null && selected < points.length ? selected : points.length - 1;
 
   const scrub = (e: GestureResponderEvent) => {
     const x = e.nativeEvent.locationX;
