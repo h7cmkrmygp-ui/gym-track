@@ -231,13 +231,31 @@ export default function SettingsScreen() {
             onChange={(v) => change('restDefaultS', v)}
           />
         </SettingRow>
-        <SettingRow icon="target" title="Objectif par semaine">
+        <SettingRow icon="target" title="Objectif jours" subtitle="Anneau or, par semaine">
           <Stepper
             value={settings.weeklyGoal}
             min={1}
             max={7}
             format={(v) => `${v} j`}
             onChange={(v) => change('weeklyGoal', v)}
+          />
+        </SettingRow>
+        <SettingRow icon="square.stack.3d.up" title="Objectif séries" subtitle="Anneau cuivre, par semaine">
+          <Stepper
+            value={settings.setsGoal}
+            min={10}
+            max={200}
+            step={5}
+            onChange={(v) => change('setsGoal', v)}
+          />
+        </SettingRow>
+        <SettingRow icon="stopwatch" title="Objectif minutes" subtitle="Anneau acier, par semaine">
+          <Stepper
+            value={settings.minutesGoal}
+            min={30}
+            max={900}
+            step={15}
+            onChange={(v) => change('minutesGoal', v)}
           />
         </SettingRow>
         <SettingRow icon="calendar.badge.clock" title="Bilan du dimanche" subtitle="Notification à 19 h">
