@@ -6,6 +6,8 @@ import {
   TextInput,
   View,
   type LayoutChangeEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type PressableProps,
   type StyleProp,
   type TextInputProps,
@@ -13,7 +15,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { GlassView } from 'expo-glass-effect';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { Icon, type SFSymbol } from '@/components/icon';
@@ -23,7 +25,9 @@ import { liquidGlass } from '@/env';
 import { selectHaptic, tapHaptic } from '@/haptics';
 import { useTheme } from '@/hooks/use-theme';
 
-const PRESS_SPRING = { damping: 18, stiffness: 320, mass: 0.6 };
+// Quick and without overshoot: feedback, not a show.
+const PRESS_IN = { duration: 90, easing: Easing.out(Easing.quad) };
+const PRESS_OUT = { duration: 160, easing: Easing.out(Easing.quad) };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -34,15 +38,12 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
  */
 export function Glass({
   fallback,
-  interactive,
   tint,
   style,
   ...props
 }: ViewProps & {
   /** Fill on systems without Liquid Glass. */
   fallback: string;
-  /** Flexes under the finger, for controls. */
-  interactive?: boolean;
   tint?: string;
 }) {
   if (!liquidGlass) return <View {...props} style={[style, { backgroundColor: fallback }]} />;
@@ -52,13 +53,12 @@ export function Glass({
       style={style}
       glassEffectStyle="regular"
       colorScheme="dark"
-      isInteractive={interactive}
       tintColor={tint}
     />
   );
 }
 
-/** Pressable that sinks slightly under the finger. */
+/** Pressable that sinks very slightly under the finger. */
 export function PressableScale({
   style,
   children,
@@ -73,11 +73,11 @@ export function PressableScale({
       {...props}
       style={[style, animated]}
       onPressIn={(e) => {
-        scale.set(withSpring(0.97, PRESS_SPRING));
+        scale.set(withTiming(0.98, PRESS_IN));
         onPressIn?.(e);
       }}
       onPressOut={(e) => {
-        scale.set(withSpring(1, PRESS_SPRING));
+        scale.set(withTiming(1, PRESS_OUT));
         onPressOut?.(e);
       }}>
       {children}
@@ -116,16 +116,27 @@ export function Screen({
   eyebrow,
   children,
   scrollRef,
+  onScrollEnd,
+  onContentSizeChange,
 }: {
   eyebrow?: string;
   children: ReactNode;
   /** To scroll the page from the screen, e.g. to the exercise in progress. */
   scrollRef?: RefObject<ScrollView | null>;
+  /** The offset where the page comes to rest after a scroll. */
+  onScrollEnd?: (y: number) => void;
+  onContentSizeChange?: (width: number, height: number) => void;
 }) {
   const theme = useTheme();
+  const scrollEnd =
+    onScrollEnd && ((e: NativeSyntheticEvent<NativeScrollEvent>) => onScrollEnd(e.nativeEvent.contentOffset.y));
   return (
     <ScrollView
       ref={scrollRef}
+      testID="screen"
+      onScrollEndDrag={scrollEnd}
+      onMomentumScrollEnd={scrollEnd}
+      onContentSizeChange={onContentSizeChange}
       style={{ backgroundColor: theme.background }}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
@@ -268,7 +279,7 @@ export function Button({ label, onPress, variant = 'primary', icon, small, disab
       disabled={disabled}
       style={[!glass && dim, style]}>
       {glass ? (
-        <Glass interactive fallback={bg} style={shape}>
+        <Glass fallback={bg} style={shape}>
           {content}
         </Glass>
       ) : (
@@ -300,7 +311,7 @@ export function IconButton({
         onPress();
       }}
       style={styles.iconButtonHit}>
-      <Glass interactive fallback={theme.backgroundSelected} style={styles.iconButton}>
+      <Glass fallback={theme.backgroundSelected} style={styles.iconButton}>
         <Icon name={icon} size={12} color={color} style={{ opacity: disabled ? 0.3 : 1 }} />
       </Glass>
     </PressableScale>
@@ -338,7 +349,7 @@ export function Chip({
       {selected ? (
         <View style={[styles.chip, { backgroundColor: theme.accent }]}>{content}</View>
       ) : (
-        <Glass interactive fallback={theme.backgroundSelected} style={styles.chip}>
+        <Glass fallback={theme.backgroundSelected} style={styles.chip}>
           {content}
         </Glass>
       )}
@@ -361,7 +372,7 @@ export function Segmented<T extends string>({
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const pill = useAnimatedStyle(() => ({
     width: segment,
-    transform: [{ translateX: withSpring(index * segment, { damping: 22, stiffness: 260 }) }],
+    transform: [{ translateX: withTiming(index * segment, { duration: 200, easing: Easing.out(Easing.cubic) }) }],
   }));
 
   return (

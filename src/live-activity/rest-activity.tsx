@@ -3,7 +3,9 @@ import {
   font,
   foregroundStyle,
   frame,
+  lineLimit,
   monospacedDigit,
+  multilineTextAlignment,
   padding,
   progressViewStyle,
   tint,
@@ -20,7 +22,8 @@ const RestActivityLayout = (props: RestActivityProps) => {
   const champagne = '#E3D3B5';
   const muted = '#9A9AA0';
   const interval = { lower: new Date(props.startedAt), upper: new Date(props.endsAt) };
-  // A ring that empties as the rest runs out.
+  // A ring that empties as the rest runs out. Nothing is written inside (patched in
+  // @expo/ui): the time goes next to it, where it fits.
   const ring = (size: number) => (
     <ProgressView
       timerInterval={interval}
@@ -28,38 +31,44 @@ const RestActivityLayout = (props: RestActivityProps) => {
       modifiers={[progressViewStyle('circular'), tint(champagne), frame({ width: size, height: size })]}
     />
   );
-  const countdown = (size: number) => (
+  // A timer text takes all the width it can, so it gets just enough for "0:00".
+  const countdown = (size: number, width: number) => (
     <Text
       timerInterval={interval}
       countsDown
-      modifiers={[font({ size, weight: 'bold', design: 'rounded' }), monospacedDigit(), foregroundStyle(champagne)]}
+      modifiers={[
+        font({ size, weight: 'bold', design: 'rounded' }),
+        monospacedDigit(),
+        foregroundStyle(champagne),
+        multilineTextAlignment('trailing'),
+        frame({ width, alignment: 'trailing' }),
+      ]}
     />
+  );
+  const nextSet = (size: number) => (
+    <Text modifiers={[font({ size, weight: 'bold' }), foregroundStyle('#FFFFFF'), lineLimit(1)]}>
+      Prochaine série : {props.exercise}
+    </Text>
   );
 
   return {
     banner: (
       <HStack spacing={14} modifiers={[padding({ all: 16 })]}>
-        {ring(44)}
+        {ring(40)}
         <VStack alignment="leading" spacing={2}>
           <Text modifiers={[font({ size: 13, weight: 'semibold' }), foregroundStyle(muted)]}>Repos</Text>
-          <Text modifiers={[font({ size: 17, weight: 'bold' }), foregroundStyle('#FFFFFF')]}>
-            Prochaine série : {props.exercise}
-          </Text>
+          {nextSet(17)}
         </VStack>
         <Spacer />
-        {countdown(28)}
+        {countdown(30, 84)}
       </HStack>
     ),
-    compactLeading: <Text modifiers={[font({ size: 13, weight: 'semibold' }), foregroundStyle(champagne)]}>Repos</Text>,
-    compactTrailing: ring(20),
-    minimal: ring(20),
+    compactLeading: ring(18),
+    compactTrailing: countdown(15, 46),
+    minimal: ring(18),
     expandedLeading: <VStack modifiers={[padding({ leading: 6 })]}>{ring(40)}</VStack>,
-    expandedTrailing: countdown(28),
-    expandedBottom: (
-      <Text modifiers={[font({ size: 15, weight: 'semibold' }), foregroundStyle('#FFFFFF')]}>
-        Prochaine série : {props.exercise}
-      </Text>
-    ),
+    expandedTrailing: countdown(28, 80),
+    expandedBottom: nextSet(15),
   };
 };
 

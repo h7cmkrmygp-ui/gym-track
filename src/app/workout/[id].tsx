@@ -1,7 +1,8 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Keyboard, Pressable, ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import Animated, { FadeIn, LinearTransition, SlideInDown, SlideOutDown, ZoomIn } from 'react-native-reanimated';
+import { useHeaderHeight } from 'expo-router/react-navigation';
+import Animated, { Easing, FadeIn, LinearTransition, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExercisePicker } from '@/components/exercise-picker';
@@ -10,7 +11,7 @@ import { ProgressRing } from '@/components/progress-ring';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Glass, IconButton, Input, PressableScale, Row, Screen } from '@/components/ui';
 import { Colors, RingColors, RoundedFont } from '@/constants/theme';
-import { getSettings } from '@/db/settings';
+import { getSettings, setSetting } from '@/db/settings';
 import {
   addExerciseToWorkout,
   addSet,
@@ -63,7 +64,9 @@ export default function WorkoutScreen() {
   const [picking, setPicking] = useState(false);
   const [data, reload] = useFocusData(loadWorkout, workoutId);
   const scrollRef = useRef<ScrollView>(null);
-  const scrolledToCurrent = useRef(false);
+  // The page is placed once per opening: back where it was left, or on the exercise in progress.
+  const placed = useRef(false);
+  const headerHeight = useHeaderHeight();
 
   if (!data) return <Screen>{null}</Screen>;
   const { detail, settings, records } = data;
@@ -71,12 +74,15 @@ export default function WorkoutScreen() {
   const active = detail.endedAt === null;
   const current = active ? currentExerciseIndex(detail.exercises) : 0;
 
-  // Opening a workout in progress jumps to the exercise being done, once.
-  const scrollToCurrent = (e: LayoutChangeEvent) => {
-    if (scrolledToCurrent.current) return;
-    scrolledToCurrent.current = true;
-    scrollRef.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - 12), animated: false });
+  const saved = settings.workoutScroll?.workoutId === workoutId ? settings.workoutScroll.y : null;
+  const scrollOnce = (y: number) => {
+    if (placed.current) return;
+    placed.current = true;
+    // After the layout pass, so the bar's inset does not override it.
+    requestAnimationFrame(() => scrollRef.current?.scrollTo({ y, animated: false }));
   };
+  // Otherwise the exercise being done goes just below the bar, which the page scrolls under.
+  const scrollToCurrent = (e: LayoutChangeEvent) => scrollOnce(e.nativeEvent.layout.y - headerHeight - 8);
 
   const close = async () => {
     const { kept } = await finishWorkout(workoutId);
@@ -134,7 +140,10 @@ export default function WorkoutScreen() {
           </Stack.Toolbar.Button>
         </Stack.Toolbar>
       )}
-      <Screen scrollRef={scrollRef}>
+      <Screen
+        scrollRef={scrollRef}
+        onContentSizeChange={saved === null ? undefined : () => scrollOnce(saved)}
+        onScrollEnd={active ? (y) => setSetting('workoutScroll', { workoutId, y }).catch(() => {}) : undefined}>
         <Summary detail={detail} />
         {detail.exercises.length === 0 && (
           <ThemedText themeColor="textSecondary">Ajoute tes exercices pour commencer.</ThemedText>
@@ -142,8 +151,8 @@ export default function WorkoutScreen() {
         {detail.exercises.map((ex, i) => (
           <Animated.View
             key={ex.exerciseId}
-            layout={LinearTransition.springify().damping(20)}
-            onLayout={i === current && i > 0 ? scrollToCurrent : undefined}>
+            layout={LinearTransition.duration(200)}
+            onLayout={saved === null && i === current && i > 0 ? scrollToCurrent : undefined}>
             <ExerciseCard
               index={i}
               workoutId={workoutId}
@@ -315,7 +324,7 @@ function ExerciseCard({
       </Row>
 
       {showPlateau && (
-        <Animated.View entering={FadeIn} style={[styles.plateau, { backgroundColor: theme.backgroundSelected }]}>
+        <Animated.View entering={FadeIn.duration(200)} style={[styles.plateau, { backgroundColor: theme.backgroundSelected }]}>
           <Row style={{ alignItems: 'flex-start' }}>
             <Icon name="exclamationmark.triangle.fill" size={14} />
             <ThemedText type="small" style={{ flex: 1 }}>
@@ -483,7 +492,7 @@ function SetRow({
           hitSlop={8}
           style={[styles.colCheck, styles.check, { backgroundColor: done ? theme.accent : theme.backgroundSelected }]}>
           {done ? (
-            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.checkFill}>
+            <Animated.View entering={FadeIn.duration(140)} style={styles.checkFill}>
               <Icon name="checkmark" size={14} color={theme.onAccent} weight="bold" />
             </Animated.View>
           ) : (
@@ -492,7 +501,7 @@ function SetRow({
         </PressableScale>
       </Row>
       {isRecord && (
-        <Animated.View entering={ZoomIn.springify().damping(14)} style={styles.pr}>
+        <Animated.View entering={FadeIn.duration(200)} style={styles.pr}>
           <Icon name="trophy.fill" size={12} />
           <ThemedText type="caps">{flags!.weight ? 'Record de charge' : 'Record de 1RM estimé'}</ThemedText>
         </Animated.View>
@@ -530,8 +539,8 @@ function RestBar() {
 
   return (
     <Animated.View
-      entering={SlideInDown.springify().damping(18)}
-      exiting={SlideOutDown.duration(220)}
+      entering={SlideInDown.duration(260).easing(Easing.out(Easing.cubic))}
+      exiting={SlideOutDown.duration(200)}
       style={[styles.restBar, !liquidGlass && styles.restShadow, { marginBottom: insets.bottom + 8 }]}>
       <Glass fallback={theme.backgroundElement} style={styles.restGlass}>
         <Row style={{ gap: 14 }}>
@@ -566,7 +575,14 @@ const styles = StyleSheet.create({
   setRow: { borderRadius: 12, paddingVertical: 5, paddingHorizontal: 4 },
   colIndex: { width: 18, textAlign: 'center' },
   colPrev: { flex: 1 },
-  colInput: { width: 72, textAlign: 'center', paddingVertical: 8, fontWeight: 600, fontVariant: ['tabular-nums'] },
+  colInput: {
+    width: 72,
+    textAlign: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    fontWeight: 600,
+    fontVariant: ['tabular-nums'],
+  },
   colInputHead: { width: 72, textAlign: 'center' },
   colCheck: { width: 36 },
   check: { height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

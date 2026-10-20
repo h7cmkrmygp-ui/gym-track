@@ -21,6 +21,8 @@ export type Settings = {
   lastExportAt: number | null;
   /** True from launch until the app has stayed open a few seconds: still true means it crashed. */
   launchPending: boolean;
+  /** Where the workout screen was scrolled, to reopen it there. */
+  workoutScroll: { workoutId: number; y: number } | null;
 };
 
 const DEFAULTS: Settings = {
@@ -34,6 +36,7 @@ const DEFAULTS: Settings = {
   lastSnapshotAt: null,
   lastExportAt: null,
   launchPending: false,
+  workoutScroll: null,
 };
 
 export async function getSettings(): Promise<Settings> {

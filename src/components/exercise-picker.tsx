@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, SectionList, StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
@@ -156,7 +156,7 @@ export function ExercisePicker({
                 <View style={[styles.tick, { borderColor: rank >= 0 ? 'transparent' : theme.hairline }]}>
                   {rank >= 0 && (
                     <Animated.View
-                      entering={ZoomIn.springify().damping(12)}
+                      entering={FadeIn.duration(120)}
                       style={[styles.tickFill, { backgroundColor: theme.accent }]}>
                       <ThemedText type="smallBold" style={{ color: theme.onAccent }}>
                         {rank + 1}
@@ -170,7 +170,7 @@ export function ExercisePicker({
         />
 
         {selected.length > 0 && (
-          <Animated.View entering={FadeInDown.springify().damping(18)}>
+          <Animated.View entering={FadeInDown.duration(200)}>
             <Button
               icon="checkmark"
               label={`Ajouter ${selected.length > 1 ? `les ${selected.length} exercices` : 'l’exercice'}`}

@@ -36,7 +36,7 @@ function RingArc({
       return;
     }
     const target = Math.max(0, Math.min(1, progress));
-    value.set(withTiming(target, { duration: 1000, easing: Easing.out(Easing.cubic) }));
+    value.set(withTiming(target, { duration: 600, easing: Easing.out(Easing.cubic) }));
   }, [progress, endsAt, totalMs, value]);
 
   const animatedProps = useAnimatedProps(() => ({

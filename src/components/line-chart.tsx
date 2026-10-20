@@ -65,7 +65,7 @@ export function LineChart({
   useEffect(() => {
     if (!line) return;
     progress.set(0);
-    progress.set(withTiming(1, { duration: 1100, easing: Easing.out(Easing.cubic) }));
+    progress.set(withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
   }, [line, progress]);
 
   const animatedLine = useAnimatedProps(() => ({ strokeDashoffset: length * (1 - progress.value) }));
@@ -149,7 +149,7 @@ export function LineChart({
           </Svg>
         )}
       </View>
-      <Animated.View entering={FadeIn.delay(400)} style={styles.labels}>
+      <Animated.View entering={FadeIn.delay(200).duration(200)} style={styles.labels}>
         <ThemedText type="caps" themeColor="textSecondary">
           {shortDate(xMin)}
         </ThemedText>

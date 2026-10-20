@@ -73,7 +73,7 @@ function RingLegend({ color, label, value, goal, unit }: { color: string; label:
         <ThemedText type="smallBold">{label}</ThemedText>
       </Row>
       <Row style={styles.legendValue}>
-        <ThemedText type="number">
+        <ThemedText type="number" style={styles.legendNumber} numberOfLines={1} adjustsFontSizeToFit>
           {value}/{goal}
         </ThemedText>
         <ThemedText type="caps">{unit}</ThemedText>
@@ -283,6 +283,8 @@ const styles = StyleSheet.create({
   legend: { gap: 0 },
   legendDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 3 },
   legendValue: { gap: 4, alignItems: 'baseline' },
+  // Fits "120/200 séries" beside the rings on the narrowest iPhones.
+  legendNumber: { fontSize: 22, lineHeight: 26, flexShrink: 1 },
   twoUp: { alignItems: 'stretch' },
   half: { minHeight: 116 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

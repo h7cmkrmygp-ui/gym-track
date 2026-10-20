@@ -163,7 +163,7 @@ function MuscleBar({ ratio, zone, delay }: { ratio: number; zone: [number, numbe
   const width = useSharedValue(0);
 
   useEffect(() => {
-    width.set(withDelay(delay, withTiming(track * ratio, { duration: 700, easing: Easing.out(Easing.cubic) })));
+    width.set(withDelay(delay, withTiming(track * ratio, { duration: 450, easing: Easing.out(Easing.cubic) })));
   }, [track, ratio, delay, width]);
 
   const bar = useAnimatedStyle(() => ({ width: width.value }));
@@ -216,7 +216,7 @@ function MusclesTab({ data }: { data: Data }) {
           <ThemedText type="small" style={styles.barLabel} numberOfLines={1}>
             {r.group}
           </ThemedText>
-          <MuscleBar ratio={r.sets / scale} zone={[TARGET_MIN / scale, TARGET_MAX / scale]} delay={i * 45} />
+          <MuscleBar ratio={r.sets / scale} zone={[TARGET_MIN / scale, TARGET_MAX / scale]} delay={i * 25} />
           <ThemedText type="smallBold" themeColor={r.sets > 0 ? 'text' : 'textSecondary'} style={styles.barValue}>
             {r.sets}
           </ThemedText>

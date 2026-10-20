@@ -5,11 +5,9 @@ import { useTheme } from '@/hooks/use-theme';
 export default function TabLayout() {
   const theme = useTheme();
 
-  // No background color: on iOS 26 the tab bar stays Liquid Glass, and shrinks to a small
-  // capsule while scrolling down, as in Apple's apps.
+  // No background color: on iOS 26 the tab bar stays Liquid Glass, as in Apple's apps.
   return (
     <NativeTabs
-      minimizeBehavior="onScrollDown"
       tintColor={theme.accent}
       indicatorColor={theme.backgroundElement}
       labelStyle={{ selected: { color: theme.accent } }}>

@@ -116,7 +116,7 @@ export default function TemplateScreen() {
           </Card>
         )}
         {exercises.map((ex, i) => (
-          <Animated.View key={`${ex.exerciseId}-${i}`} layout={LinearTransition.springify().damping(20)}>
+          <Animated.View key={`${ex.exerciseId}-${i}`} layout={LinearTransition.duration(200)}>
             <Card>
               <Row style={{ gap: 10 }}>
                 <View style={[styles.badge, { backgroundColor: theme.backgroundSelected }]}>

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { Icon } from '@/components/icon';
 import { MonthCalendar } from '@/components/month-calendar';
@@ -73,7 +73,7 @@ export default function HistoryScreen() {
       </Card>
 
       {selected && (dayWorkouts.length > 0 || dayVisits.length > 0) && (
-        <Animated.View key={selected} entering={FadeInDown.duration(300)}>
+        <Animated.View key={selected} entering={FadeIn.duration(200)}>
           <Card>
             <ThemedText type="caps">{longDate(new Date(`${selected}T12:00:00`).getTime())}</ThemedText>
             {dayVisits.map((v) => (

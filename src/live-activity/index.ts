@@ -16,7 +16,9 @@ export async function showRestActivity(props: RestActivityProps) {
     const factory = await loadFactory();
     const [current] = factory.getInstances();
     if (current) await current.update(props, new Date(props.endsAt));
-    else factory.start(props, 'gymtrack://', new Date(props.endsAt));
+    // No URL: tapping it just brings the app back as it was. A link would navigate, and
+    // "gymtrack://" left the workout in progress for the home screen.
+    else factory.start(props, undefined, new Date(props.endsAt));
   } catch (e) {
     console.warn('Live Activity failed', e);
   }

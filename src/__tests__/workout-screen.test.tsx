@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import WorkoutScreen from '@/app/workout/[id]';
+import { setSetting } from '@/db/settings';
 import type { WorkoutDetail } from '@/db/workouts';
 
 // Reproduces opening a workout just started from a planned session.
@@ -49,8 +50,10 @@ jest.mock('@/db/workouts', () => ({
   recordsBefore: jest.fn(async () => new Map()),
 }));
 jest.mock('@/db/settings', () => ({
-  getSettings: jest.fn(async () => ({ unit: 'lbs', restDefaultS: 90, weeklyGoal: 3 })),
+  getSettings: jest.fn(async () => ({ unit: 'lbs', restDefaultS: 90, weeklyGoal: 3, workoutScroll: null })),
+  setSetting: jest.fn(async () => {}),
 }));
+jest.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 100 }));
 jest.mock('@/state/rest-timer', () => ({
   useRestTimer: () => null,
   startRest: jest.fn(),
@@ -64,5 +67,14 @@ test('renders a workout started from a planned session', async () => {
   expect(await screen.findByText(/Développé couché/)).toBeTruthy();
   expect(screen.getByText(/Squat/)).toBeTruthy();
   // Stops the duration timer.
+  screen.unmount();
+});
+
+// Reopening the workout puts it back where it was left: the screen remembers its scroll.
+test('remembers where the workout was scrolled to', async () => {
+  await render(<WorkoutScreen />);
+  await screen.findByText(/Squat/);
+  fireEvent(screen.getByTestId('screen'), 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 0, y: 420 } } });
+  expect(setSetting).toHaveBeenCalledWith('workoutScroll', { workoutId: 1, y: 420 });
   screen.unmount();
 });

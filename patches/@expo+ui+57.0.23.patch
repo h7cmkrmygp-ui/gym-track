@@ -1,0 +1,23 @@
+diff --git a/node_modules/@expo/ui/ios/ProgressView.swift b/node_modules/@expo/ui/ios/ProgressView.swift
+index 99cd99b..3098988 100644
+--- a/node_modules/@expo/ui/ios/ProgressView.swift
++++ b/node_modules/@expo/ui/ios/ProgressView.swift
+@@ -27,9 +27,15 @@ public struct ProgressView: ExpoSwiftUI.View {
+       let upper = timerInterval.upper,
+       lower <= upper,
+       #available(iOS 16.0, tvOS 16.0, *) {
+-      SwiftUI.ProgressView(timerInterval: ClosedRange(uncheckedBounds: (lower: lower, upper: upper)), countsDown: props.countsDown ?? true) {
+-        Children()
+-      }
++      // No current value label: by default it writes the remaining time inside a circular
++      // ring, where it does not fit (Live Activity in the Dynamic Island). Show the time with
++      // Text(timerInterval:) next to the ring instead.
++      SwiftUI.ProgressView(
++        timerInterval: ClosedRange(uncheckedBounds: (lower: lower, upper: upper)),
++        countsDown: props.countsDown ?? true,
++        label: { Children() },
++        currentValueLabel: { EmptyView() }
++      )
+     } else if let value = props.value {
+       SwiftUI.ProgressView(value: value) {
+         Children()

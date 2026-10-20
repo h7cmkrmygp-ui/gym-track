@@ -71,6 +71,9 @@ export default function RootLayout() {
     // Sunday's summary when leaving it.
     const appStateSub = AppState.addEventListener('change', (state) => {
       if (state !== 'background') return;
+      // Reaching the background is no crash: if iOS closes the app from there, reopening it
+      // must still go back to the workout.
+      setSetting('launchPending', false).catch(() => {});
       refreshWidget();
       scheduleTimedNotifications().catch((e) => console.warn('Scheduling notifications failed', e));
     });
